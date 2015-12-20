@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<XMLDB PATH="question/type/code/db" VERSION="20151220" COMMENT="XMLDB file for Moodle question/type/code"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="../../../../lib/xmldb/xmldb.xsd"
+>
+  <TABLES>
+    <TABLE NAME="qtype_code_options" COMMENT="Extra options for code questions">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="questionid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="The question ID"/>
+        <FIELD NAME="autocorrectenv" TYPE="char" LENGTH="128" NOTNULL="false" SEQUENCE="false" COMMENT="The environment used for correction"/>
+        <FIELD NAME="envoptions" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Extra options for the environment"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="questionid" TYPE="unique" FIELDS="questionid"/>
+      </KEYS>
+    </TABLE>
+  </TABLES>
+</XMLDB>

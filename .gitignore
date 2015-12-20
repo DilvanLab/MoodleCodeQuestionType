@@ -1,0 +1,11 @@
+# Ignore everything in the root except the "wp-content" directory.
+/*
+!.gitignore
+!question/
+
+question/*
+
+!question/type
+question/type/*
+
+!question/type/code

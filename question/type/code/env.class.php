@@ -80,6 +80,8 @@ class env {
         // create temporary files
         $this->createFiles();
 
+        self::debug($this->values);
+
         $output = false;
         if(is_string($this->options["action"])) {
             $output = $this->run($this->parse($this->options["action"]));
@@ -204,6 +206,7 @@ class env {
      * @return string
      */
     private function parse($cmd) {
+        self::debugt("Parse: $cmd");
         $out = "";
         $token = "";
         $toToken = false;
@@ -259,6 +262,7 @@ class env {
 
             if($parseToken) {
                 $out .= $this->getValue($token);
+                $token = "";
                 $out .= $postAppend;
             }
 
@@ -278,11 +282,12 @@ class env {
         while (count($pieces)) {
             $v = array_pop($pieces);
             if(!array_key_exists($v, $arr)) {
+                self::debugt("There is no $var");
                 return null;
             }
             $arr = $arr[$v];
         }
-
+        self::debugt("$var is $arr");
         return $arr;
 
     }

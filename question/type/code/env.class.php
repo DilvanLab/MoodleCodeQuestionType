@@ -62,7 +62,7 @@ class env {
     }
 
     public function getOptions() {
-
+        return $this->options;
     }
 
     /**

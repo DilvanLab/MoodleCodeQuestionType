@@ -40,6 +40,7 @@ class qtype_code_edit_form extends question_edit_form {
     protected function definition_inner($mform) {
         $qtype = question_bank::get_qtype('code');
 
+        $cid = required_param('courseid', PARAM_INT);
 
         $mform->addElement('header', 'autocorrecttitle', get_string('autocorrecttitle', 'qtype_code'));
         $mform->setExpanded('autocorrecttitle');
@@ -52,6 +53,7 @@ class qtype_code_edit_form extends question_edit_form {
         $mform->addElement('button', 'envutils', get_string('envutils', 'qtype_code'), 'id="envutils"');
         $mform->addElement('textarea', 'envoptions',
             get_string('envoptions', 'qtype_code'), 'style="width:100%" rows="10" id="envoptions"');
+        $mform->addElement('html', "<div id = 'envoptionsedit' style='margin-top: 20px; margin-bottom: 20px'></div>");
         $mform->addElement('html', "<div style='width: 100%; height: 300px' id='envoptionsace'></div>");
 
         $jqueryURL = new moodle_url('/question/type/code/scripts/jquery-2.1.4.min.js');
@@ -59,12 +61,15 @@ class qtype_code_edit_form extends question_edit_form {
         $uiCSSURL = new moodle_url('/question/type/code/scripts/jquery-ui-1.11.4.custom/jquery-ui.min.css');
         $aceURL = new moodle_url('/question/type/code/scripts/ace/ace.js');
         $scriptURL = new moodle_url('/question/type/code/scripts/form_editor.js');
+        $ajaxURL = new moodle_url('/question/type/code/getenv.php');
+        $ajaxURL->param('courseid', $cid);
 
         $mform->addElement('html', "<script type='text/javascript' src='$jqueryURL'></script>");
         $mform->addElement('html', "<script type='text/javascript' src='$uiURL'></script>");
         $mform->addElement('html', "<link rel='stylesheet' href='$uiCSSURL'>");
         $mform->addElement('html', "<script type='text/javascript' src='$aceURL'></script>");
         $mform->addElement('html', "<script type='text/javascript' src='$scriptURL'></script>");
+        $mform->addElement('html', "<script type='text/javascript'>var ajaxURL = '$ajaxURL'</script>");
 
         $mform->setDefault('envoptions', '');
     }

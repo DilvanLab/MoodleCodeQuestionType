@@ -27,6 +27,8 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+require_once("graded.class.php");
+
 
 /**
  * Represents a code question.
@@ -41,24 +43,15 @@ class qtype_code_question extends question_with_responses implements question_au
     public $envoptions;
     public $autocorrectenv;
     /**
-     * env
+     * Contains the graded result
+     * @var array
      */
+    public $graded;
+    /** @var env */
     public $env = null;
 
     public function __construct() {
 
-    }
-
-    public function check_file_access($qa, $options, $component, $filearea,
-            $args, $forcedownload) {
-        // TODO.
-        if ($component == 'question' && $filearea == 'hint') {
-            return $this->check_hint_file_access($qa, $options, $args);
-
-        } else {
-            return parent::check_file_access($qa, $options, $component, $filearea,
-                    $args, $forcedownload);
-        }
     }
 
     public function make_behaviour(question_attempt $qa, $preferredbehaviour) {
@@ -69,20 +62,74 @@ class qtype_code_question extends question_with_responses implements question_au
         if($this->env != null) {
             return $this->env;
         }
+
         $this->env = $this->qtype->get_env($this->autocorrectenv);
         $this->env->setEnvOptions(json_decode($this->envoptions, true));
         return $this->env;
     }
 
-    public function grade_response(array $response) {
-        // TODO.
+    /**
+     * Grades code if not already graded, and returns the resulting GradedCode
+     *
+     * @param string $runid The raw runid param from the answer
+     * @param array|null $response
+     * @throws moodle_exception
+     * @return GradedCode
+     */
+    public function getGraded($runid, $response = null) {
         $this->loadEnv();
+        /** @var env $env */
+        $env = $this->env;
+
+        $id = GradedCode::validateRunID($runid, $env->getSecret());
+        if($id === false) {
+            throw new moodle_exception("Invalid run id!");
+        }
+
+        $graded = new GradedCode($id);
+
+        if(!$graded->runid && $response) {
+            $this->grade($response, $graded);
+        }
+
+        return $graded;
+    }
+
+    public function grade(array $response, &$graded = null) {
+        if($this->graded) {
+            return $this->graded;
+        }
+        $this->loadEnv();
+        /** @var env $env */
         $env = $this->env;
         if($env == null) {
             debugging('Invalid environment');
-            return null;
+            return false;
         }
-        $tagged = $env->grade($response);
+
+        if(!array_key_exists("runid", $response)) {
+            return false;
+        }
+
+        $graded = $this->getGraded($response['runid']);
+
+        $contextmodule = context_system::instance();
+        $output = $env->grade($response, $contextmodule);
+        $this->graded = $output;
+
+        $graded->setOutput($output);
+
+        return $output;
+    }
+
+
+
+    public function grade_response(array $response) {
+        $output = $this->grade($response);
+        if($output == false || !$output['success']) {
+            return array(0, question_state::graded_state_for_fraction(0));
+        }
+        $tagged = $output['tags'];
         if($tagged == false) {
             $fraction = 0;
         } else {
@@ -95,9 +142,37 @@ class qtype_code_question extends question_with_responses implements question_au
         return array($fraction, question_state::graded_state_for_fraction($fraction));
     }
 
-    public function compute_final_grade($responses, $totaltries) {
-        // TODO.
-        return 0;
+    public function createRun() {
+        $id = GradedCode::createRun();
+        $this->loadEnv();
+        return GradedCode::getRunID($id, $this->env->getSecret());
+    }
+
+    public function get_feedback(question_attempt $qa) {
+        $feedback = "";
+        $graded = $this->getGraded($qa->get_last_qt_var("runid"));
+
+        if(!$graded->output) {
+            return get_string('nooutput', 'qtype_code');
+        }
+
+        if(!$graded->output["success"]) {
+            $feedback .= get_string('runerror', 'qtype_code');
+        } else {
+            $feedback .= get_string('runsuccess', 'qtype_code');
+        }
+
+        if(array_key_exists("feedback", $graded->output["tags"])) {
+            $feedback .= "<pre>". $graded->output["feedback"] ."</pre>";
+        }
+
+        $o = $graded->output["output"];
+
+        if(@$o->feedback) {
+            $feedback .= "<pre>". implode("\n", $o->feedback) ."</pre>";
+        }
+
+        return $feedback;
     }
 
     /**
@@ -110,6 +185,8 @@ class qtype_code_question extends question_with_responses implements question_au
      * @return bool whether this response is a complete answer to this question.
      */
     public function is_complete_response(array $response) {
+        //$graded = $this->getGraded($response['runid'], $response);
+        //return $graded->output && $graded->output['success'];
         return true;
     }
 
@@ -125,8 +202,7 @@ class qtype_code_question extends question_with_responses implements question_au
      *      whether the new set of responses can safely be discarded.
      */
     public function is_same_response(array $prevresponse, array $newresponse) {
-        // TODO: Implement is_same_response() method.
-        return false;
+        return $prevresponse == $newresponse;
     }
 
     /**
@@ -135,8 +211,7 @@ class qtype_code_question extends question_with_responses implements question_au
      * @return string a plain text summary of that response, that could be used in reports.
      */
     public function summarise_response(array $response) {
-        // TODO: Implement summarise_response() method.
-        return "";
+        return "Cannot get summaries for code questions";
     }
 
     /**
@@ -147,8 +222,7 @@ class qtype_code_question extends question_with_responses implements question_au
      *      returns an empty array if no analysis is possible.
      */
     public function classify_response(array $response) {
-        // TODO: Implement classify_response() method.
-        return "";
+        return [];
     }
 
     /**
@@ -161,7 +235,8 @@ class qtype_code_question extends question_with_responses implements question_au
      * @return bool whether this response can be graded.
      */
     public function is_gradable_response(array $response) {
-        // TODO: Implement is_gradable_response() method.
+        //$graded = $this->getGraded($response['runid'], $response);
+        //return $graded->output && $graded->output['success'];
         return true;
     }
 
@@ -171,8 +246,8 @@ class qtype_code_question extends question_with_responses implements question_au
      * @return string the message.
      */
     public function get_validation_error(array $response) {
-        // TODO: Implement get_validation_error() method.
-        return "";
+        $graded = $this->getGraded($response['runid'], $response);
+        return $graded->output['output']['feedback'];
     }
 
     /**
@@ -184,7 +259,6 @@ class qtype_code_question extends question_with_responses implements question_au
      * @param question_attempt $qa The question_attempt.
      */
     public function get_hint($hintnumber, question_attempt $qa) {
-        // TODO: Implement get_hint() method.
 
     }
 
@@ -196,7 +270,7 @@ class qtype_code_question extends question_with_responses implements question_au
      * @return string|null a plain text summary of the right answer to this question.
      */
     public function get_right_answer_summary() {
-        // TODO: Implement get_right_answer_summary() method.
+        return null;
     }
 
     /**
@@ -212,6 +286,7 @@ class qtype_code_question extends question_with_responses implements question_au
      */
     public function get_expected_data() {
         $this->loadEnv();
+        /** @var env $env */
         $env = $this->env;
         $inputs = $env->getInputs();
 
@@ -220,6 +295,8 @@ class qtype_code_question extends question_with_responses implements question_au
         foreach ($inputs as $k=>$v) {
             $expecteddata[$k] = PARAM_RAW;
         }
+
+        $expecteddata["runid"] = PARAM_RAW;
 
         return $expecteddata;
     }
@@ -233,7 +310,6 @@ class qtype_code_question extends question_with_responses implements question_au
      * @return array|null parameter name => value.
      */
     public function get_correct_response() {
-        // TODO: Implement get_correct_response() method.
         return null;
     }
 }

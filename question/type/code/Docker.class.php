@@ -3,8 +3,12 @@
 class Docker {
     private $image;
     private $id;
+    private static $debug = false;
 
     private static function debug($str) {
+        if(!self::$debug) {
+            return;
+        }
         echo "<pre>[DOCKER] $str</pre>";
     }
 

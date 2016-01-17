@@ -96,6 +96,7 @@ class qtype_code extends question_type {
         $this->move_files_in_hints($questionid, $oldcontextid, $newcontextid);
     }
 
+
     protected function delete_files($questionid, $contextid) {
         parent::delete_files($questionid, $contextid);
         $this->delete_files_in_hints($questionid, $contextid);
@@ -107,8 +108,6 @@ class qtype_code extends question_type {
             array('questionid' => $question->id), '*', MUST_EXIST);
         parent::get_question_options($question);
     }
-
-
 
     public function save_question_options($question) {
         //$question->responsetemplate = base64_encode($question->responsetemplate);

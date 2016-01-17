@@ -115,6 +115,7 @@ EOF;
     public function formulation_and_controls(question_attempt $qa,
                                              question_display_options $options) {
 
+        /** @var qtype_code_question $question */
         $question = $qa->get_question();
         $question->loadEnv();
         $inputs = $question->env->getInputs();
@@ -129,6 +130,7 @@ EOF;
             foreach ($inputs as $k => $v) {
                 $template[$k] = $v['default'];
             }
+            $template["runid"] = $question->createRun();
             $step = new question_attempt_step($template);
         }
 
@@ -137,7 +139,13 @@ EOF;
 
         $files = "";
 
+
         $result = html_writer::tag('div', $questiontext, array('class' => 'qtext'));
+        $result .= html_writer::tag('input', "", array(
+            'type' => 'hidden',
+            "name" => $qa->get_qt_field_name("runid"),
+            "value" => $step->get_qt_var("runid")
+        ));
         $result .= html_writer::start_tag('div', array('class' => 'ablock'));
 
         foreach ($inputs as $k=>$v) {
@@ -163,8 +171,12 @@ EOF;
     }
 
     public function specific_feedback(question_attempt $qa) {
-        // TODO.
-        return '';
+        /** @var qtype_code $question */
+        $question = $qa->get_question();
+
+        $feedback = $question->get_feedback($qa);
+
+        return $question->format_text($feedback, FORMAT_HTML, $qa, 'question', 'answerfeedback', "");
     }
 
     public function correct_response(question_attempt $qa) {

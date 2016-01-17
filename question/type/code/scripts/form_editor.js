@@ -3,7 +3,7 @@ function EnvEditor(textarea, editor, button, select) {
     this.button = button;
     this.editor = editor;
     this.selector = select;
-    this.options = JSON.parse(this.textarea.val());
+    this.options = JSON.parse(this.textarea.val() == "" ? "{}" : this.textarea.val());
 
     textarea.hide();
     editor.setTheme("ace/theme/chrome");

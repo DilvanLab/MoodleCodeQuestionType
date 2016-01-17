@@ -25,7 +25,23 @@ function xmldb_qtype_code_upgrade($oldversion) {
 
         // Code savepoint reached.
         upgrade_plugin_savepoint(true, 2015122000, 'qtype', 'code');
+    }
 
+    if ($oldversion < 2016011501) {
+
+        // Define field id to be added to coderuns.
+        $table = new xmldb_table('qtype_code_coderuns');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null, null);
+        $table->add_field('runid', XMLDB_TYPE_CHAR, '200', null, XMLDB_NOTNULL, null, null, 'id');
+        $table->add_field('graded', XMLDB_TYPE_TEXT, null, null, XMLDB_NOTNULL, null, null, 'runid');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, array('id'));
+
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Code savepoint reached.
+        upgrade_plugin_savepoint(true, 2016011501, 'qtype', 'code');
     }
 
     return true;

@@ -1,22 +1,39 @@
 <?php
 
 require_once("Docker.class.php");
+require_once("classes/event/code_run.php");
 
 class env {
 
+    /**
+     * This var should be changed!
+     * @var string
+     */
+    private static $secret = "HDATdeRAYpR4rN6Z6yLBbbk3NkoH7079KYQTLKkDtNCbgnQwmL40AnT1KP4W4GES";
     private $id;
     private $options;
     private $dir;
     private $values;
     private $tmp;
+    private static $debug = false;
+
+    const OUTPUT_LOG = "log";
+    const OUTPUT_OUTPUT = "output";
+    const OUTPUT_FEEDBACK = "feedback";
 
     private static function debug($var) {
+        if(!self::$debug) {
+            return;
+        }
         echo "<pre>";
         var_dump($var);
         echo "</pre>";
     }
 
     private static function debugt($var) {
+        if(!self::$debug) {
+            return;
+        }
         echo "<pre>[ENV] $var</pre>";
     }
 
@@ -61,16 +78,36 @@ class env {
         $this->setEnvOptions();
     }
 
+    /**
+     * Returns this environment's secret for HMAC encryption
+     * of the run ID
+     *
+     * @return string the env secret
+     */
+    public function getSecret() {
+        if(array_key_exists("secret", $this->options)) {
+            return $this->options["secret"];
+        } else {
+            return self::$secret;
+        }
+    }
+
     public function getOptions() {
         return $this->options;
     }
 
     /**
      * Parses $answers and executes all commands.
+     * Return format:
+     * runid: unique id for this run
+     * output: raw outputs
+     * tags: tagged output
+     *
      * @param array $answers
+     * @param object $context the context used for logging
      * @return array|false The tagged output of the grader, false if failed to run
      */
-    public function grade(array $answers) {
+    public function grade(array $answers, $context = null) {
         // create temporary environment
         $this->createTmp();
 
@@ -82,6 +119,7 @@ class env {
 
         self::debug($this->values);
 
+        $runid = time()."-".sha1(microtime().uniqid().rand());
         $output = false;
         if(is_string($this->options["action"])) {
             $output = $this->run($this->parse($this->options["action"]));
@@ -90,29 +128,74 @@ class env {
         }
 
         self::debug($output);
-        if($output == false) {
-            return false;
+
+        if($context) {
+            // log and save run to file
+            $fs = get_file_storage();
+            $outputNames = ["log", "output", "feedback"];
+
+            foreach($outputNames as $v) {
+                // Prepare file record object
+                $fileinfo = array(
+                    'contextid' => $context->id,    // ID of context
+                    'component' => 'qcode',         // usually = table name
+                    'filearea' => 'runs',           // usually = table name
+                    'itemid' => 0,                  // usually = ID of row in table
+                    'filepath' => '/',              // any path beginning and ending in /
+                    'filename' => "$runid-$v.txt"); // any filename
+
+                $file = $fs->create_file_from_string($fileinfo, implode("\n", $output[$v]));
+            }
+
+            // trigger the event
+            global $USER;
+
+            $event = \qtype_code\event\code_run::create([
+                "other" => [
+                    "runid" => $runid,
+                    "env" => $this->options['name']
+                ],
+                "relateduserid" => $USER->id,
+                "contextid" => $context->id
+            ]);
+
+            $event->trigger();
         }
 
-        // remove exit code
-        array_pop($output);
+        $tags = $this->getTags($output['output']);
 
-        return $this->getTags($output);
+        return [
+            "runid" => $runid,
+            "tags" => $tags,
+            "output" => $output,
+            "success" => $output['success']
+        ];
     }
 
     /**
      * Runs the command and return an array containing each line
      * of the output. The last value of this array will be the
      * exit code for the program.
+     * The return array will have the following keys:
+     * output: array of strings, the output of the command
+     * code: the exit code for the last executed process
+     * log: log info, used in the run log
+     * feedback: used for student feedback (for instance, compiling errors)
+     * success: bool
      *
      * @param $str
      * @return array
      */
     private function run($str) {
         $ret = [];
+        $output = [];
         $exit = 0;
-        exec($str, $ret, $exit);
-        $ret[] = $exit;
+        exec($str, $output, $exit);
+        $ret["output"] = $output;
+        $ret["code"] = $exit;
+        $ret["log"] = $output;
+        $ret["feedback"] = $output;
+        $ret["success"] = ($exit == 0);
         return $ret;
     }
 
@@ -144,17 +227,57 @@ class env {
         // check environment
         $docker->exec("bash -c \"ls {$do['copyTo']}\"");
 
-        $ret = [];
+        $ret = [
+            "log" => [],
+            "output" => [],
+            "feedback" => [],
+            "code" => null,
+            "success" => true
+        ];
         foreach ($do['commands'] as $v) {
             $val = 0;
-            unset($ret);
-            $docker->exec('bash -c "cd '.$do['copyTo'].'; '.$this->parse($v).'"', $ret, $val);
-            $ret[] = $val;
+            self::debug($v);
+            if(!is_array($v)) {
+                // single commands replace current output
+                self::debugt("Single command");
+                unset($ret['output']);
+                $cmd = $v;
+                $docker->exec('bash -c "cd '.$do['copyTo'].'; '.$this->parse($cmd).'"', $ret['output'], $val);
+                $ret["code"] = $val;
+            } else {
+                // this command has special options
+                self::debugt("Full command");
+                $cmd = false;
+                $output = false;
+                if(array_key_exists("cmd", $v)) {
+                    $cmd = $v['cmd'];
+                }
+                if($cmd === false) {
+                    continue;
+                }
+                if(array_key_exists("output", $v)) {
+                    if(is_array($v['output'])) {
+                        $output = $v['output'];
+                    } else {
+                        $output = [$v['output']];
+                    }
+                }
+                $result = [];
+                $docker->exec('bash -c "cd '.$do['copyTo'].'; '.$this->parse($cmd).'"', $result, $val);
+                $ret["code"] = $val;
+
+                foreach($output as $o) {
+                    $ret[$o] = array_merge($ret[$o], $result);
+                }
+            }
+
 
             if($val) {
+                // return code non-zero means something went wrong
+                // mark this as a failure and stop
                 self::debugt("Non-zero return value: $val - abort");
-                $docker->stop();
-                return false;
+                $ret['success'] = false;
+                break;
             }
         }
 
@@ -276,6 +399,10 @@ class env {
         return $out;
     }
 
+    /**
+     * @param string $var the field name
+     * @return array|null the value
+     */
     private function getValue($var) {
         $pieces = array_reverse(explode(".", $var));
         $arr = $this->values;
@@ -292,6 +419,13 @@ class env {
 
     }
 
+    /**
+     * Checks for and validates fields
+     *
+     * @param string $var field name
+     * @param string $value field value
+     * @return string the validated string
+     */
     private function validate($var, $value) {
         if(!array_key_exists("validation", $this->options)) {
             return $value;
@@ -311,6 +445,12 @@ class env {
         return $value;
     }
 
+    /**
+     * Sets a value for $var
+     *
+     * @param string $var the name of the field
+     * @param mixed $value the new value for the field
+     */
     private function setValue($var, $value) {
         $value = $this->validate($var, $value);
         $pieces = explode(".", $var);
@@ -346,7 +486,8 @@ class env {
     }
 
     /**
-     * Merges two associative arrays. $b overlaps $a
+     * Merges two associative arrays. $b has priority over $a
+     *
      * @param $a
      * @param $b
      * @return array
@@ -390,10 +531,24 @@ class env {
         return $this->getName();
     }
 
+    /**
+     * Creates a unique string representing this field
+     * @param string $name
+     * @return string
+     */
     public function fieldname($name) {
         return preg_replace("/[^A-Za-z0-9]/", '', $name).substr(md5($name), 0, 10);
     }
 
+    /**
+     * Returns inputs for this question. Used to generate field names and expected input
+     * for the question engine
+     *
+     * @param bool $useValues if modified values should be used
+     * @param bool $fieldname if the id returned should be unique (using env::fieldname)
+     * @return array of inputs
+     * @throws coding_exception
+     */
     public function getInputs($useValues = true, $fieldname = true) {
         $inputs = [];
 
@@ -453,8 +608,16 @@ class env {
     }
 
     private static $tags = [
-        "score" => "/score:(.*)/"
+        "score" => "/score:(.*)/",
+        "feedback" => "/feedback:(.*)/"
     ];
+
+    /**
+     * Parses the tags from the rader output
+     *
+     * @param $output array of string The raw grader output
+     * @return array the tags
+     */
     private function getTags($output) {
         $tagged = [];
         foreach (self::$tags as $k => $v) {
@@ -465,7 +628,6 @@ class env {
                 }
                 $matches = [];
                 if(preg_match($v, $o, $matches)) {
-                    self::debug($matches);
                     // remove full string
                     unset($matches[0]);
 

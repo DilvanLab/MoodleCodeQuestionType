@@ -146,7 +146,11 @@ function EnvEditorUI(envEditor, envID) {
 
         //str += "<strong>Run commands:</strong><br>";
         for(var i in action.commands) {
-            str += this.formatCommand(action.commands[i]);
+            if(typeof(action.commands[i]) == "string") {
+                str += this.formatCommand(action.commands[i]);
+            } else {
+                str += this.formatCommand(action.commands[i].cmd);
+            }
         }
 
         return str;

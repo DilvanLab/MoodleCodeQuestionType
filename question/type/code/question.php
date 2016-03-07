@@ -88,7 +88,7 @@ class qtype_code_question extends question_with_responses implements question_au
 
         $graded = new GradedCode($id);
 
-        if(!$graded->runid && $response) {
+        if(/*!$graded->runid &&*/ $response) {
             $this->grade($response, $graded);
         }
 
@@ -185,7 +185,6 @@ class qtype_code_question extends question_with_responses implements question_au
      * @return bool whether this response is a complete answer to this question.
      */
     public function is_complete_response(array $response) {
-        //$graded = $this->getGraded($response['runid'], $response);
         //return $graded->output && $graded->output['success'];
         return true;
     }
@@ -202,7 +201,19 @@ class qtype_code_question extends question_with_responses implements question_au
      *      whether the new set of responses can safely be discarded.
      */
     public function is_same_response(array $prevresponse, array $newresponse) {
-        return $prevresponse == $newresponse;
+        if($prevresponse == $newresponse) {
+            return true;
+        }
+
+        /*
+         * This will grade the response so we can print the response
+         */
+        try {
+            $graded = $this->getGraded($newresponse['runid'], $newresponse);
+        } catch(Exception $e) {
+
+        }
+        return false;
     }
 
     /**

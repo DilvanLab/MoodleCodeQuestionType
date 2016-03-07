@@ -69,10 +69,12 @@ class qtype_code_renderer extends qtype_renderer {
         editor$uid.getSession().setMode("ace/mode/$lang");
         textarea$uid.val(btoa(editor$uid.getSession().getValue()));
         editor$uid.getSession().on("change", function() {
-            textarea$uid.val(btoa(encodeURIComponent(editor$uid.getSession().getValue()).replace(/%([0-9A-F]{2})/g, function(match, p1) {
+            /*textarea$uid.val(btoa(encodeURIComponent(editor$uid.getSession().getValue()).replace(/%([0-9A-F]{2})/g, function(match, p1) {
                 return String.fromCharCode('0x' + p1);
-            })));
+            })));*/
+            textarea$uid.val(Base64.encode(editor$uid.getSession().getValue()))
         });
+        textarea$uid.val(Base64.encode(editor$uid.getSession().getValue()));
 EOF;
         if($readonly) {
             $editor .= "\neditor$uid.setReadOnly(true)";
@@ -148,6 +150,11 @@ EOF;
         ));
         $result .= html_writer::start_tag('div', array('class' => 'ablock'));
 
+        $result .= html_writer::tag('script', '', array(
+            'src' => new moodle_url('/question/type/code/scripts/base64.js'),
+            'type' => 'text/javascript'
+        ));
+
         foreach ($inputs as $k=>$v) {
             if($v['type'] == 'editor') {
                 if(array_key_exists("name", $v)) {
@@ -164,6 +171,20 @@ EOF;
         }
 
         $result .= html_writer::tag('div',$files, array('class' => 'attachments'));
+
+        $runResults = false;
+        try {
+            $graded = $question->getGraded($step->get_qt_var('runid'));
+            if($graded->output && $graded->output["output"]->feedback) {
+                $runResults = implode("\n", $graded->output["output"]->feedback);
+            }
+        } catch(Exception $e) {
+
+        }
+
+        if($runResults) {
+            $result .= html_writer::tag('pre', $runResults, array('style' => ''));
+        }
         $result .= html_writer::end_tag('div');
 
 

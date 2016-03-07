@@ -41,6 +41,6 @@ $string['envutils'] = 'Utilities';
 
 $string['nooutput'] = 'No output from the grader.';
 $string['runerror'] = 'Error while running your code!';
-$string['runsuccess'] = 'Your code ran correctly';
+$string['runsuccess'] = 'No compilation error';
 
 $string['eventcoderun'] = 'Code executed';

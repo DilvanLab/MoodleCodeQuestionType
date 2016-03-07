@@ -53,20 +53,16 @@ class qtype_code_renderer extends qtype_renderer {
             "style" => "display:none",
             "id" => "answereditorta$uid"
         ));
-        $editor .= html_writer::tag('script', '', array(
-            'src' => new moodle_url('/question/type/code/scripts/ace/ace.js'),
-            'type' => 'text/javascript'
-        ));
-        $editor .= html_writer::tag('script', '', array(
-            'src' => new moodle_url('/question/type/code/scripts/jquery-2.1.4.min.js'),
-            'type' => 'text/javascript'
-        ));
+
         $editor .= html_writer::start_tag('script', array('type' => 'text/javascript'));
         $editor .= <<<EOF
         var editor$uid = ace.edit("answereditor$uid");
         var textarea$uid = $('#answereditorta$uid');
         editor$uid.setTheme("ace/theme/chrome");
         editor$uid.getSession().setMode("ace/mode/$lang");
+        editor$uid.setOptions({
+            enableBasicAutocompletion: true
+        });
         textarea$uid.val(btoa(editor$uid.getSession().getValue()));
         editor$uid.getSession().on("change", function() {
             /*textarea$uid.val(btoa(encodeURIComponent(editor$uid.getSession().getValue()).replace(/%([0-9A-F]{2})/g, function(match, p1) {
@@ -154,6 +150,28 @@ EOF;
             'src' => new moodle_url('/question/type/code/scripts/base64.js'),
             'type' => 'text/javascript'
         ));
+
+        $result .= html_writer::tag('script', '', array(
+            'src' => new moodle_url('/question/type/code/scripts/ace/ace.js'),
+            'type' => 'text/javascript'
+        ));
+
+        $result .= html_writer::tag('script', '', array(
+            'src' => new moodle_url('/question/type/code/scripts/ace/ext-language_tools.js'),
+            'type' => 'text/javascript'
+        ));
+
+        $result .= html_writer::tag('script', '', array(
+            'src' => new moodle_url('/question/type/code/scripts/jquery-2.1.4.min.js'),
+            'type' => 'text/javascript'
+        ));
+
+        $result .= html_writer::start_tag('script', array('type' => 'text/javascript'));
+        $result .= <<<EOF
+        ace.require("ace/ext/language_tools");
+EOF;
+        $result .= html_writer::end_tag('script');
+
 
         foreach ($inputs as $k=>$v) {
             if($v['type'] == 'editor') {

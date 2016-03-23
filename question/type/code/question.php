@@ -152,6 +152,9 @@ class qtype_code_question extends question_with_responses implements question_au
         $feedback = "";
         $graded = $this->getGraded($qa->get_last_qt_var("runid"));
 
+        $score = $graded->output["tags"] ? $graded->output["tags"]->score * 100 : 0;
+        $feedback .= "<h3>Your score: $score%</h3><br>";
+
         if(!$graded->output) {
             return get_string('nooutput', 'qtype_code');
         }
@@ -161,6 +164,8 @@ class qtype_code_question extends question_with_responses implements question_au
         } else {
             $feedback .= get_string('runsuccess', 'qtype_code');
         }
+
+        $feedback .= "<hr>";
 
         if(array_key_exists("feedback", $graded->output["tags"])) {
             $feedback .= "<pre>". $graded->output["feedback"] ."</pre>";

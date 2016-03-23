@@ -40,7 +40,7 @@ function dump($var) {
  */
 class qtype_code_renderer extends qtype_renderer {
 
-    private function createEditor($outName, $answer, $lang = "c_cpp", $readonly = false) {
+    private function createEditor($outName, $answer, $lang = "c_cpp", $readonly = false, $k, $filename) {
         $pxperline = 15;
         $responselines = 30;
         $uid = uniqid();
@@ -51,6 +51,10 @@ class qtype_code_renderer extends qtype_renderer {
         $editor .= html_writer::tag('textarea', '', array(
             "name" => $outName,
             "style" => "display:none",
+            "class" => "moodlecode_field_input",
+            "data-field" => $k,
+            "data-editorid" => $uid,
+            "data-filename" => $filename,
             "id" => "answereditorta$uid"
         ));
 
@@ -118,6 +122,7 @@ EOF;
         $question->loadEnv();
         $inputs = $question->env->getInputs();
 
+
         $lastVar = array_keys($inputs)[0];
 
         $step = $qa->get_last_step_with_qt_var($lastVar);
@@ -146,6 +151,11 @@ EOF;
         ));
         $result .= html_writer::start_tag('div', array('class' => 'ablock'));
 
+        $result .= html_writer::tag('div', 'error', array('id' => 'moodlecode_error',
+            'class' => 'ui-state-error ui-corner-all',
+            'style' => 'padding: 10px; margin-bottom: 20px; display: none'
+        ));
+
         $result .= html_writer::tag('script', '', array(
             'src' => new moodle_url('/question/type/code/scripts/base64.js'),
             'type' => 'text/javascript'
@@ -166,6 +176,17 @@ EOF;
             'type' => 'text/javascript'
         ));
 
+        $result .= html_writer::tag('link', '', array(
+            'href' => new moodle_url('/question/type/code/scripts/jquery-ui-1.11.4.custom/jquery-ui.min.css'),
+            'rel' => 'stylesheet',
+            'type' => 'text/css'
+        ));
+
+        $result .= html_writer::tag('script', '', array(
+            'src' => new moodle_url('/question/type/code/scripts/jquery-ui-1.11.4.custom/jquery-ui.min.js'),
+            'type' => 'text/javascript'
+        ));
+
         $result .= html_writer::start_tag('script', array('type' => 'text/javascript'));
         $result .= <<<EOF
         ace.require("ace/ext/language_tools");
@@ -173,24 +194,54 @@ EOF;
         $result .= html_writer::end_tag('script');
 
 
+        $result .= html_writer::tag('script', '', array(
+            'src' => new moodle_url('/question/type/code/scripts/ide.js'),
+            'type' => 'text/javascript'
+        ));
+        if(!$options->readonly) {
+            $result .= html_writer::tag('button', 'Run', array('id' => 'moodlecode_btn_run'));
+        }
+        $result .= html_writer::start_tag('div', array('id' => 'moodlecode_editortabs'));
+        $result .= html_writer::empty_tag('input', array(
+            'type' => 'hidden',
+            'class' => "moodlecode_field_input",
+            'data-field' => "questionid",
+            'value' => $question->id
+        ));
+        $result .= html_writer::empty_tag('input', array(
+            'type' => 'hidden',
+            'id' => 'moodlecode_url',
+            'value' => base64_encode(new moodle_url('/question/type/code/api/run.php'))
+        ));
+        $editors_blocks = "";
+        $editors_nav = html_writer::start_tag('ul', array('style' => 'height: 38px'));
         foreach ($inputs as $k=>$v) {
             if($v['type'] == 'editor') {
-                if(array_key_exists("name", $v)) {
-                    $result .= html_writer::start_tag('p');
-                    $result .= get_string('displayfilewillbe', 'qtype_code', $v['name']);
-                    $result .= html_writer::end_tag('p');
-                }
-                $result .= $this->createEditor($qa->get_qt_field_name($k), s(base64_decode($step->get_qt_var($k))), $v['lang']);
-                $result .= "<br>";
+//                if(array_key_exists("name", $v)) {
+//                    $result .= html_writer::start_tag('p');
+//                    $result .= get_string('displayfilewillbe', 'qtype_code', $v['name']);
+//                    $result .= html_writer::end_tag('p');
+//                }
+                $editors_blocks .= html_writer::start_tag('div', array('id' => $k));
+                $editors_blocks .= $this->createEditor($qa->get_qt_field_name($k), s(base64_decode($step->get_qt_var($k))), $v['lang'], $options->readonly, $k, $v['name']);
+                $editors_blocks .= html_writer::end_tag('div');
+                $editors_nav .= html_writer::tag('li', "<a href = '#$k'>{$v['name']}</a>");
+                //$result .= "<br>";
             }
             if($v['type'] == 'text') {
                 $result .= $this->createText($qa->get_qt_field_name($k), $step->get_qt_var($k), $v['label']);
             }
         }
+        $editors_nav .= html_writer::end_tag('ul');
+
+        $result .= $editors_nav;
+        $result .= $editors_blocks;
+
+        $result .= html_writer::end_tag('div');
 
         $result .= html_writer::tag('div',$files, array('class' => 'attachments'));
 
-        $runResults = false;
+        $runResults = "Press run to execute your code";
         try {
             $graded = $question->getGraded($step->get_qt_var('runid'));
             if($graded->output && $graded->output["output"]->feedback) {
@@ -199,9 +250,8 @@ EOF;
         } catch(Exception $e) {
 
         }
-
-        if($runResults) {
-            $result .= html_writer::tag('pre', $runResults, array('style' => ''));
+        if(!$options->readonly) {
+            $result .= html_writer::tag('pre', $runResults, array('id' => 'moodlecode_results', 'style' => 'background-color: #000; color: #FFF'));
         }
         $result .= html_writer::end_tag('div');
 

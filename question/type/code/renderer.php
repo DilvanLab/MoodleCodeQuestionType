@@ -151,7 +151,7 @@ EOF;
         ));
         $result .= html_writer::start_tag('div', array('class' => 'ablock'));
 
-        $result .= html_writer::tag('div', 'error', array('id' => 'moodlecode_error',
+        $result .= html_writer::tag('div', 'error', array('class' => 'moodlecode_error',
             'class' => 'ui-state-error ui-corner-all',
             'style' => 'padding: 10px; margin-bottom: 20px; display: none'
         ));
@@ -199,9 +199,9 @@ EOF;
             'type' => 'text/javascript'
         ));
         if(!$options->readonly) {
-            $result .= html_writer::tag('button', 'Run', array('id' => 'moodlecode_btn_run'));
+            $result .= html_writer::tag('button', 'Run', array('class' => 'moodlecode_btn_run'));
         }
-        $result .= html_writer::start_tag('div', array('id' => 'moodlecode_editortabs'));
+        $result .= html_writer::start_tag('div', array('class' => 'moodlecode_editortabs'));
         $result .= html_writer::empty_tag('input', array(
             'type' => 'hidden',
             'class' => "moodlecode_field_input",
@@ -210,7 +210,7 @@ EOF;
         ));
         $result .= html_writer::empty_tag('input', array(
             'type' => 'hidden',
-            'id' => 'moodlecode_url',
+            'class' => 'moodlecode_url',
             'value' => base64_encode(new moodle_url('/question/type/code/api/run.php'))
         ));
         $editors_blocks = "";
@@ -251,7 +251,7 @@ EOF;
 
         }
         if(!$options->readonly) {
-            $result .= html_writer::tag('pre', $runResults, array('id' => 'moodlecode_results', 'style' => 'background-color: #000; color: #FFF'));
+            $result .= html_writer::tag('pre', $runResults, array('class' => 'moodlecode_results', 'style' => 'background-color: #000; color: #FFF'));
         }
         $result .= html_writer::end_tag('div');
 

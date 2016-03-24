@@ -37,7 +37,7 @@ require_once("graded.class.php");
 
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class qtype_code_question extends question_with_responses implements question_automatically_gradable {
+class qtype_code_question extends question_graded_automatically implements question_automatically_gradable {
 
     public $responselang;
     public $envoptions;
@@ -54,9 +54,11 @@ class qtype_code_question extends question_with_responses implements question_au
 
     }
 
-    public function make_behaviour(question_attempt $qa, $preferredbehaviour) {
-        return question_engine::make_behaviour('deferredfeedback', $qa, $preferredbehaviour);
-    }
+//    public function make_behaviour(question_attempt $qa, $preferredbehaviour) {
+//        //return question_engine::make_behaviour('deferredfeedback', $qa, $preferredbehaviour);
+//        return question_engine::make_behaviour('immediatefeedback', $qa, $preferredbehaviour);
+//        //return question_engine::make_archetypal_behaviour($preferredbehaviour, $qa);
+//    }
 
     public function loadEnv() {
         if($this->env != null) {

@@ -1,16 +1,25 @@
 "use strict";
 
 $(function() {
-    $("#moodlecode_editortabs").tabs();
-    $("#moodlecode_btn_run").click(function(e) {
+    $(".moodlecode_editortabs").tabs();
+    $(".moodlecode_btn_run").click(function(e) {
         e.preventDefault();
+        if($(this).attr("disabled")) {
+            // sometimes the event may trigger twice
+            // so we stop it here
+            return false;
+        }
 
         var button = $(this);
-        var results = $("#moodlecode_results");
-        var message = $("#moodlecode_error");
+
+        var block = button.closest(".ablock");
+        console.debug(block);
+        var results = block.find(".moodlecode_results");
+        console.debug(results);
+        var message = block.find(".moodlecode_error");
         var fields = {};
         var editors = {};
-        $(".moodlecode_field_input").each(function() {
+        block.find(".moodlecode_field_input").each(function() {
             var u = $(this);
             fields[u.data().field] = u.val ? u.val() : u.data().val;
             if(u.data().editorid) {
@@ -18,7 +27,7 @@ $(function() {
             }
         });
 
-        $.ajax(atob($("#moodlecode_url").val()), {
+        $.ajax(atob(block.find(".moodlecode_url").val()), {
             data: fields,
             method: 'POST',
             beforeSend: function() {
@@ -35,6 +44,13 @@ $(function() {
                 } else {
                     if(data.results) {
                         results.html(data.results.feedback.join("\n"))
+                        for(var i in editors) {
+                            if(!editors.hasOwnProperty(i)) {
+                                continue;
+                            }
+                            var editor = eval("editor" + i);
+                            editor.getSession().setAnnotations();
+                        }
                         if(!data.results.success) {
                             var errors = parseErrors(data.results.feedback);
                             for(var i in editors) {
@@ -60,6 +76,7 @@ $(function() {
                                 editor.getSession().setAnnotations(errorArray.map(function(x) {
                                     return {
                                         row: x.line - 1,
+                                        column: x.column - 1,
                                         text: x.text,
                                         type: "error"
                                     }
@@ -83,7 +100,7 @@ $(function() {
     function parseErrors(results) {
         var text = results.join("\n");
         // this is for C
-        var matchError = /(\w+\.\w+):(\d+):\d+: ?(.*)/gi;
+        var matchError = /(\w+\.\w+):(\d+):(\d+): ?(.*)/gi;
 
         var errors = [];
         var r;
@@ -91,7 +108,8 @@ $(function() {
             errors.push({
                 filename: r[1],
                 line: r[2],
-                text: r[3]
+                column: r[3],
+                text: r[4]
             });
         }
 

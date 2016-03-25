@@ -85,6 +85,7 @@ class qtype_code_question extends question_graded_automatically implements quest
 
         $id = GradedCode::validateRunID($runid, $env->getSecret());
         if($id === false) {
+            //$id = $this->createRun();
             throw new moodle_exception("Invalid run id!");
         }
 
@@ -152,7 +153,12 @@ class qtype_code_question extends question_graded_automatically implements quest
 
     public function get_feedback(question_attempt $qa) {
         $feedback = "";
-        $graded = $this->getGraded($qa->get_last_qt_var("runid"));
+
+        try {
+            $graded = $this->getGraded($qa->get_last_qt_var("runid"));
+        } catch (Exception $err) {
+            return get_string('noattempt', 'qtype_code');
+        }
 
         $score = $graded->output["tags"] ? $graded->output["tags"]->score * 100 : 0;
         $feedback .= "<h3>Your score: $score%</h3><br>";

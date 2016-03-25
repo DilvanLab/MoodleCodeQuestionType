@@ -87,7 +87,7 @@ class qtype_code extends question_type {
             $v = new env($dir);
             return $v;
         } catch(Exception $e) {
-            return null;
+            die($e->getMessage());
         }
     }
 

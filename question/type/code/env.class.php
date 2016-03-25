@@ -105,9 +105,13 @@ class env {
      *
      * @param array $answers
      * @param object $context the context used for logging
+     * @param string $config the type of run
+     * @throws coding_exception
+     * @throws file_exception
+     * @throws stored_file_creation_exception
      * @return array|false The tagged output of the grader, false if failed to run
      */
-    public function grade(array $answers, $context = null) {
+    public function grade(array $answers, $context = null, $config = "grade") {
         // create temporary environment
         $this->createTmp();
 
@@ -121,10 +125,15 @@ class env {
 
         $runid = time()."-".sha1(microtime().uniqid().rand());
         $output = false;
-        if(is_string($this->options["action"])) {
-            $output = $this->run($this->parse($this->options["action"]));
-        } else if($this->options["action"]["type"] == "docker"){
-            $output = $this->runDocker();
+        if(is_array($this->options["action"]) && array_key_exists($config, $this->options["action"])) {
+            $action = $this->options["action"][$config];
+        } else {
+            $action = $this->options["action"];
+        }
+        if(is_string($action)) {
+            $output = $this->run($this->parse($action));
+        } else if($action["type"] == "docker"){
+            $output = $this->runDocker($action);
         }
 
         self::debug($output);
@@ -204,10 +213,10 @@ class env {
      * specified in $options['action'].
      * Returns in the same way as run()
      *
+     * @param array $do the action to run
      * @return array
      */
-    private function runDocker() {
-        $do = $this->options["action"];
+    private function runDocker($do) {
         $docker = new Docker($do['image']);
         $docker->start();
 
@@ -589,6 +598,9 @@ class env {
                 $k = $this->fieldname($id);
             } else {
                 $k = $id;
+            }
+            if(strlen($k) > 32) {
+                $k = substr($k, 0, 32);
             }
             $inputs[$k] = [
                 "type" => $v['type'],

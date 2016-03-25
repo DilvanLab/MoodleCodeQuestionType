@@ -151,8 +151,8 @@ EOF;
         ));
         $result .= html_writer::start_tag('div', array('class' => 'ablock'));
 
-        $result .= html_writer::tag('div', 'error', array('class' => 'moodlecode_error',
-            'class' => 'ui-state-error ui-corner-all',
+        $result .= html_writer::tag('div', 'error', array(
+            'class' => 'ui-state-error ui-corner-all moodlecode_error',
             'style' => 'padding: 10px; margin-bottom: 20px; display: none'
         ));
 

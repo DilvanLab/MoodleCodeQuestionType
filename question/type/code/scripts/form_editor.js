@@ -88,7 +88,6 @@ function EnvEditorUI(envEditor, envID) {
                 return;
             }
             self.definition = data;
-            console.log(data);
             self.createFields();
         });
     };
@@ -156,12 +155,12 @@ function EnvEditorUI(envEditor, envID) {
         return str;
     };
 
-    this.getActionText = function () {
+    this.getActionText = function (action) {
         var str = "";
-        if (typeof this.definition.action == "string") {
-            str += "Run command:" + this.formatCommand(this.definition.action);
-        } else if (this.definition.action.type == "docker") {
-            str += this.formatDocker(this.definition.action);
+        if (typeof action == "string") {
+            str += "Run command:" + this.formatCommand(action);
+        } else if (action.type == "docker") {
+            str += this.formatDocker(action);
         }
 
         return str;
@@ -201,7 +200,6 @@ function EnvEditorUI(envEditor, envID) {
         var self = this;
         $(".envEditorField").each(function() {
             $(this).change(function() {
-                console.log($(this).data());
                 self.setValue($(this).data("id"), $(this).data("field"), $(this).val());
             })
         });
@@ -213,10 +211,14 @@ function EnvEditorUI(envEditor, envID) {
             "<strong>Name: </strong>" + this.definition.name
         ));
 
-        var actionText = this.getActionText();
-        this.content.append($("<div>").html(
-            actionText
-        ));
+        for(i in this.definition.action) {
+            this.content.append($("<h5>").html("Action id: " + i));
+            var actionText = this.getActionText(this.definition.action[i]);
+            this.content.append($("<div>").html(
+                actionText
+            ));
+            this.content.append($("<hr>"));
+        }
 
         // draw the editors
         var fields = this.getFields();
@@ -256,10 +258,8 @@ function EnvEditorUI(envEditor, envID) {
             var val = self.getValue(fields, $(this).data("id"));
             var field = fields[$(this).data("field")];
             if(field && field.encode) {
-                console.log("encode", val);
                 val = self.decode(val, field.encode);
             }
-            console.log("set " + $(this).data("id") + " to " + val);
             $(this).val(val);
         });
     };
@@ -314,7 +314,6 @@ function EnvEditorUI(envEditor, envID) {
     // removes everything from fields that is default
     this.minimalOptions = function (fields) {
         var defaults = this.getFields(true);
-        console.log(fields, defaults);
         return this.minimal(fields, defaults);
     };
 
@@ -342,7 +341,7 @@ function EnvEditorUI(envEditor, envID) {
         arr[k] = value;
         this.editor.setOptions(this.minimalOptions(fields));
 
-        console.log("set", id, "to", value);
+        g("set", id, "to", value);
     };
 
     this.getValue = function(fields, id) {
@@ -390,7 +389,11 @@ var Renderers = {
         var str = Renderers["textarea"](x, target);
         str += "<br><strong>Lang:</strong> <select data-field='" + x.id + ".lang' data-id='" + x.id + ".lang' class=\"envEditorField\">";
         for(var i in langs) {
-            str += "<option value='" + langs[i] + '\'>' + langs[i] + "</option>";
+            if(langs[i]) {
+                str += "<option value='" + langs[i] + '\'>' + langs[i] + "</option>";
+            } else {
+                str += "<option value=''></option>";
+            }
         }
 
         str += "</select>";

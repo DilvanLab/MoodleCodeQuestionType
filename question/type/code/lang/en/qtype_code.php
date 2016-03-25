@@ -44,3 +44,4 @@ $string['runerror'] = 'Error while running your code!';
 $string['runsuccess'] = 'No compilation error';
 
 $string['eventcoderun'] = 'Code executed';
+$string['noattempt'] = 'No attempt was made';

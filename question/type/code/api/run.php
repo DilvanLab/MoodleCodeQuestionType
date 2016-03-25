@@ -29,7 +29,7 @@ try {
 }
 
 $env = $question->loadEnv();
-$graded = $env->grade($_REQUEST);
+$graded = $env->grade($_REQUEST, null, "test");
 
 mc_response([
     "results" => [

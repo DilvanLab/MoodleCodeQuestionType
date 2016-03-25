@@ -13,9 +13,7 @@ $(function() {
         var button = $(this);
 
         var block = button.closest(".ablock");
-        console.debug(block);
         var results = block.find(".moodlecode_results");
-        console.debug(results);
         var message = block.find(".moodlecode_error");
         var fields = {};
         var editors = {};

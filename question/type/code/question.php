@@ -161,6 +161,14 @@ class qtype_code_question extends question_graded_automatically implements quest
         }
 
         $score = $graded->output["tags"] ? $graded->output["tags"]->score * 100 : 0;
+        if($score == 100) {
+            $img = new moodle_url("/question/type/code/pix/check.png");
+        } else if($score == 0) {
+            $img = new moodle_url("/question/type/code/pix/wrong.png");
+        } else {
+            $img = new moodle_url("/question/type/code/pix/slash.png");
+        }
+        $feedback .= "<div style='text-align: center; float: left; margin-right: 20px; margin-left: 20px; margin-bottom: 20px'><img src = '$img' width='100px' height='100px'/></div>";
         $feedback .= "<h3>Your score: $score%</h3><br>";
 
         if(!$graded->output) {
@@ -173,10 +181,10 @@ class qtype_code_question extends question_graded_automatically implements quest
             $feedback .= get_string('runsuccess', 'qtype_code');
         }
 
-        $feedback .= "<hr>";
+        $feedback .= "<hr style='clear: both'>";
 
         if(array_key_exists("feedback", $graded->output["tags"])) {
-            $feedback .= "<pre>". $graded->output["feedback"] ."</pre>";
+            $feedback .= "<pre style='padding: 10px'>". $graded->output["feedback"] ."</pre>";
         }
 
         $o = $graded->output["output"];

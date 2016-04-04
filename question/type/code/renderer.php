@@ -198,9 +198,6 @@ EOF;
             'src' => new moodle_url('/question/type/code/scripts/ide.js'),
             'type' => 'text/javascript'
         ));
-        if(!$options->readonly) {
-            $result .= html_writer::tag('button', 'Run', array('class' => 'moodlecode_btn_run'));
-        }
         $result .= html_writer::start_tag('div', array('class' => 'moodlecode_editortabs'));
         $result .= html_writer::empty_tag('input', array(
             'type' => 'hidden',
@@ -253,6 +250,11 @@ EOF;
         if(!$options->readonly) {
             $result .= html_writer::tag('pre', $runResults, array('class' => 'moodlecode_results', 'style' => 'background-color: #000; color: #FFF'));
         }
+
+        if(!$options->readonly) {
+            $result .= html_writer::tag('button', 'Run', array('class' => 'moodlecode_btn_run', 'style' => 'float: left; width: 120px; color: #00F; font-weight: bold; border: 2px solid #00F; box-sizing: border-box'));
+        }
+
         $result .= html_writer::end_tag('div');
 
 

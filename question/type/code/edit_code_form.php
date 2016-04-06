@@ -62,8 +62,10 @@ class qtype_code_edit_form extends question_edit_form {
         $aceURL = new moodle_url('/question/type/code/scripts/ace/ace.js');
         $scriptURL = new moodle_url('/question/type/code/scripts/form_editor.js');
         $ajaxURL = new moodle_url('/question/type/code/getenv.php');
+        $b64URL = new moodle_url('/question/type/code/scripts/base64.js');
         $ajaxURL->param('courseid', $cid);
 
+        $mform->addElement('html', "<script type='text/javascript' src='$b64URL'></script>");
         $mform->addElement('html', "<script type='text/javascript' src='$jqueryURL'></script>");
         $mform->addElement('html', "<script type='text/javascript' src='$uiURL'></script>");
         $mform->addElement('html', "<link rel='stylesheet' href='$uiCSSURL'>");

@@ -206,19 +206,6 @@ function EnvEditorUI(envEditor, envID) {
     };
 
     this.createFields = function () {
-        // draw call settings
-        this.content.append($("<div>").html(
-            "<strong>Name: </strong>" + this.definition.name
-        ));
-
-        for(i in this.definition.action) {
-            this.content.append($("<h5>").html("Action id: " + i));
-            var actionText = this.getActionText(this.definition.action[i]);
-            this.content.append($("<div>").html(
-                actionText
-            ));
-            this.content.append($("<hr>"));
-        }
 
         // draw the editors
         var fields = this.getFields();
@@ -247,6 +234,20 @@ function EnvEditorUI(envEditor, envID) {
             }).html(Renderers[fields[i].type](fields[i], target)));
         }
 
+        // draw call settings
+        this.content.append($("<div>").html(
+            "<strong>Name: </strong>" + this.definition.name
+        ));
+
+        for(i in this.definition.action) {
+            this.content.append($("<h5>").html("Action id: " + i));
+            var actionText = this.getActionText(this.definition.action[i]);
+            this.content.append($("<div>").html(
+                actionText
+            ));
+            this.content.append($("<hr>"));
+        }
+
         this.registerFields(fields);
         this.updateFields(fields);
     };
@@ -270,7 +271,7 @@ function EnvEditorUI(envEditor, envID) {
         }
 
         if(method == "base64") {
-            return btoa(value);
+            return Base64.encode(value);
         }
 
         return value;
@@ -282,7 +283,7 @@ function EnvEditorUI(envEditor, envID) {
         }
 
         if(method == "base64") {
-            return atob(value);
+            return Base64.decode(value);
         }
 
         return value;
@@ -459,15 +460,11 @@ function Utilities(button) {
     };
 
     this.encode = function () {
-        this.base64toggle.val(btoa(encodeURIComponent(this.base64toggle.val())
-            .replace(/%([0-9A-F]{2})/g, function (match, p1) {
-                return String.fromCharCode('0x' + p1);
-            }
-        )));
+        this.base64toggle.val(Base64.encode(this.base64toggle.val()));
     };
 
     this.decode = function () {
-        this.base64toggle.val(atob(this.base64toggle.val()));
+        this.base64toggle.val(Base64.decode(this.base64toggle.val()));
     };
 
 

@@ -67,7 +67,7 @@ class qtype_code_renderer extends qtype_renderer {
         editor$uid.setOptions({
             enableBasicAutocompletion: true
         });
-        textarea$uid.val(btoa(editor$uid.getSession().getValue()));
+        textarea$uid.val(Base64.encode(editor$uid.getSession().getValue()));
         editor$uid.getSession().on("change", function() {
             /*textarea$uid.val(btoa(encodeURIComponent(editor$uid.getSession().getValue()).replace(/%([0-9A-F]{2})/g, function(match, p1) {
                 return String.fromCharCode('0x' + p1);

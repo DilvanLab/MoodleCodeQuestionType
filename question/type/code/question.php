@@ -184,7 +184,7 @@ class qtype_code_question extends question_graded_automatically implements quest
         $feedback .= "<hr style='clear: both'>";
 
         if(array_key_exists("feedback", $graded->output["tags"])) {
-            $feedback .= "<pre style='padding: 10px'>". $graded->output["feedback"] ."</pre>";
+            $feedback .= "<pre style='padding: 10px'>". $graded->output["tags"]->feedback ."</pre>";
         }
 
         $o = $graded->output["output"];

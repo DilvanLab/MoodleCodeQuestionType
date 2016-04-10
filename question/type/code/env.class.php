@@ -21,7 +21,7 @@ class env {
     const OUTPUT_OUTPUT = "output";
     const OUTPUT_FEEDBACK = "feedback";
 
-    private static function debug($var) {
+    public static function debug($var) {
         if(!self::$debug) {
             return;
         }
@@ -30,7 +30,7 @@ class env {
         echo "</pre>";
     }
 
-    private static function debugt($var) {
+    public static function debugt($var) {
         if(!self::$debug) {
             return;
         }
@@ -73,6 +73,11 @@ class env {
         if(!isset($options["name"]) || $options["name"] == "") {
             $options["name"] = $this->id;
         }
+
+        $this->functions = [
+            "resultCompare" => "resultCompare",
+            "regexCompare" => "regexCompare"
+        ];
 
         $this->options = $options;
         $this->setEnvOptions();
@@ -290,6 +295,19 @@ class env {
             }
         }
 
+        $this->setValue("_output", $ret);
+
+        if(isset($do['outputProcess'])) {
+            $params = [];
+            foreach($do['outputProcess']['params'] as $k => $v) {
+                $params[$k] = $this->getValue($v);
+            }
+
+            if(isset($this->functions[$do['outputProcess']['function']])) {
+                $ret['output'] = call_user_func($this->functions[$do['outputProcess']['function']], $params, $this);
+            }
+        }
+
         $docker->stop();
 
         return $ret;
@@ -325,6 +343,11 @@ class env {
                         $v['output']['value'] = null;
                     }
                     file_put_contents($this->tmp."/".$v['output']['name'], base64_decode($v['output']['value']));
+                } else if($v['output']['type'] == 'json') {
+                    if(!array_key_exists('value', $v['output'])) {
+                        $v['output']['value'] = null;
+                    }
+                    file_put_contents($this->tmp."/".$v['output']['name'], json_encode($v['output']['value']));
                 }
             }
         }
@@ -423,7 +446,7 @@ class env {
             }
             $arr = $arr[$v];
         }
-        self::debugt("$var is $arr");
+        //self::debugt("$var is $arr");
         return $arr;
 
     }
@@ -662,6 +685,72 @@ class env {
 
         return $tagged;
     }
+}
+
+/**
+ * @param array $params
+ * @param env $env
+ * @return array
+ */
+function resultCompare($params, $env) {
+    $correct = 0;
+
+    $model = explode("\n", base64_decode($params['model']));
+
+    $model = array_filter($model, function($var) {
+        return (!preg_match('/^ *$/', $var));
+    });
+
+    $num = count($model);
+
+    $response = $params['response'];
+
+    $response = array_filter($response, function($var) {
+        return (!preg_match('/^ *$/', $var));
+    });
+
+    $env->debug($model);
+    $env->debug($response);
+
+    foreach($model as $k => $v) {
+        $vv = array_shift($response);
+        if(trim($vv) == trim($v)) {
+            $correct++;
+        }
+    }
+
+    $num += count($response);
+
+    return [
+        "score: ". ($correct/$num)
+    ];
+}
+
+/**
+ * @param $params
+ * @param env $env
+ * @return array
+ */
+function regexCompare($params, $env) {
+    $env->debug($params);
+
+    $response = implode($params['response']);
+    $grade = 0;
+    foreach($params["model"] as $v) {
+        if($v['regex'] && strlen($v['regex']) > 0) {
+            $rx = "/{$v['regex']}/i";
+            $env->debugt("Match $rx?");
+            if(preg_match($rx, $response)) {
+                $grade = $v['fraction'];
+                break;
+            }
+            $env->debugt("no");
+        }
+    }
+
+    return [
+        "score: $grade"
+    ];
 }
 
 /**

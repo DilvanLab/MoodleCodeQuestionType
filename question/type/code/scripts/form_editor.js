@@ -200,7 +200,13 @@ function EnvEditorUI(envEditor, envID) {
         var self = this;
         $(".envEditorField").each(function() {
             $(this).change(function() {
-                self.setValue($(this).data("id"), $(this).data("field"), $(this).val());
+                console.log($(this));
+                if($(this).data("val")) {
+                    self.setValue($(this).data("id"), $(this).data("field"), $(this).data("val"));
+                } else {
+                    self.setValue($(this).data("id"), $(this).data("field"), $(this).val());
+                }
+
             })
         });
     };
@@ -229,9 +235,17 @@ function EnvEditorUI(envEditor, envID) {
                 target = "";
                 console.log("Can't resolve: " + i);
             }
-            this.content.append($("<div>", {
-                style: "margin-top: 20px; margin-bottom: 20px"
-            }).html(Renderers[fields[i].type](fields[i], target)));
+
+            var result = Renderers[fields[i].type](fields[i], target);
+            if(typeof result == "string") {
+                this.content.append($("<div>", {
+                    style: "margin-top: 20px; margin-bottom: 20px"
+                }).html(result));
+            } else {
+                this.content.append($("<div>", {
+                    style: "margin-top: 20px; margin-bottom: 20px"
+                }).append(result));
+            }
         }
 
         // draw call settings
@@ -250,6 +264,7 @@ function EnvEditorUI(envEditor, envID) {
 
         this.registerFields(fields);
         this.updateFields(fields);
+        $(".envEditorField").change();
     };
 
     // takes the current field values and puts them on the elements
@@ -260,6 +275,9 @@ function EnvEditorUI(envEditor, envID) {
             var field = fields[$(this).data("field")];
             if(field && field.encode) {
                 val = self.decode(val, field.encode);
+            }
+            if(val === null && $(this).data("default") != undefined) {
+                val = $(this).data("default");
             }
             $(this).val(val);
         });
@@ -326,7 +344,7 @@ function EnvEditorUI(envEditor, envID) {
         while (pieces.length > 1) {
             var k = pieces.pop();
             if(!arr[k]) {
-                return;
+                arr[k] = {};
             }
             arr = arr[k];
         }
@@ -338,11 +356,14 @@ function EnvEditorUI(envEditor, envID) {
         if(field.encode) {
             value = this.encode(value, field.encode);
         }
+        if(field.parse) {
+            value = JSON.parse(value);
+        }
 
         arr[k] = value;
         this.editor.setOptions(this.minimalOptions(fields));
 
-        g("set", id, "to", value);
+        //g("set", id, "to", value);
     };
 
     this.getValue = function(fields, id) {
@@ -400,6 +421,71 @@ var Renderers = {
         str += "</select>";
 
         return str;
+    },
+    "regexlist": function (x, target) {
+        var container = $("<div>", {
+            "class": "regexinputs"
+        });
+
+        function change() {
+            var target = $(this).closest(".regexinputs");
+            var results = [];
+            var response = target.find(".envEditorField");
+            target.find(".regexgroup").each(function() {
+                var group = $(this);
+                results.push({
+                    fraction: group.find(".regexfraction").eq(0).val(),
+                    regex: group.find(".regex").eq(0).val()
+                })
+            });
+
+            console.log(results);
+
+            response.data("val", results);
+
+            response.change();
+        }
+
+        container.append($("<h3>").text(x.name));
+
+        var num = x.count || 4;
+        //for(var i = 0; i < num; i++) {
+        //    container.append($("<div>", {
+        //        "class": "regexgroup"
+        //    }).append([
+        //        $("<label>").text("Fraction (0-1): ").append($("<input>", {
+        //            type: "text",
+        //            "class": "regexfraction"
+        //        }).change(change)),
+        //        $("<label>").text(" Regex: ").append($("<input>", {
+        //            type: "text",
+        //            "class": "regex"
+        //        }).change(change))
+        //    ]));
+        //}
+
+        for(var i = 0; i < num; i++) {
+            container.append($("<div>", {
+                "class": "regexgroup"
+            }).append([
+                $("<label>").html("Fraction (0-1): ").append($("<input>", {
+                    type: "text",
+                    "class": "envEditorField regexfraction",
+                    style: "margin-right: 20px"
+                }).data("field", x.id + ".output").data("id", x.id + ".output.value." + i + ".fraction").data("default",(num - i)/num)),
+                $("<label>").html(" Regex: ").append($("<input>", {
+                    type: "text",
+                    "class": "envEditorField regex"
+                }).data("field", x.id + ".output").data("id", x.id + ".output.value." + i + ".regex"))
+            ]));
+        }
+
+        //container.append($("<input>", {
+        //    type: "hidden",
+        //    "class": "envEditorField"
+        //}).data("field", x.id + ".output").data("id", x.id));
+
+        return container;
     }
 };
 

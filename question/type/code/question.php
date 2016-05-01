@@ -142,6 +142,7 @@ class qtype_code_question extends question_graded_automatically implements quest
                 $fraction = 0;
             }
         }
+        $fraction = floatval($fraction);
         return array($fraction, question_state::graded_state_for_fraction($fraction));
     }
 

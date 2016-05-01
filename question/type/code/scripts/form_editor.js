@@ -5,6 +5,12 @@ function EnvEditor(textarea, editor, button, select) {
     this.selector = select;
     this.options = JSON.parse(this.textarea.val() == "" ? "{}" : this.textarea.val());
 
+    if(!this.options["@testcases"]) {
+        this.options["@testcases"] = 1;
+    }
+
+    this.textarea.val(JSON.stringify(this.options, null, 4));
+
     textarea.hide();
     editor.setTheme("ace/theme/chrome");
 
@@ -173,13 +179,28 @@ function EnvEditorUI(envEditor, envID) {
     this.getFields = function (makeDefault) {
         var fields = {};
 
-        // add options
-        for(var i in this.definition.options) {
-            var o = this.definition.options[i];
-            if(makeDefault) {
-                fields[o.id] = $.extend(true, {}, o);
-            } else {
-                fields[o.id] = $.extend(true, {}, o, this.editor.options[o.id]);
+        if(!makeDefault) {
+            fields["@testcases"] = this.editor.options['@testcases'];
+        }
+
+        for(var j = 0; j < this.editor.options['@testcases']; j++) {
+            fields["@" + j] = {};
+            var u = fields["@" + j];
+            // add options
+            for(var i in this.definition.options) {
+                var o = this.definition.options[i];
+                if(makeDefault) {
+                    var k = $.extend(true, {}, o);
+                } else {
+                    var f = this.editor.options["@" + j];
+                    if(f) {
+                        var k = $.extend(true, {}, o, f[o.id]);
+                    } else {
+                        var k = $.extend(true, {}, o);
+                    }
+                }
+                u[k.id] = k;
+                k.id = "@" + j + "." + k.id;
             }
         }
 
@@ -192,6 +213,8 @@ function EnvEditorUI(envEditor, envID) {
                 fields[o.id] = $.extend(true, {}, o, this.editor.options[o.id]);
             }
         }
+
+        console.log(fields);
 
         return fields;
     };
@@ -215,7 +238,75 @@ function EnvEditorUI(envEditor, envID) {
 
         // draw the editors
         var fields = this.getFields();
+        var testCaseCount = $("<input>", {
+            type: "hidden",
+            class: "envEditorField"
+        }).data("id", "@testcases").data("field", "@testcases").val(this.editor.options["@testcases"]);
+        this.content.append(testCaseCount);
+
+        var self = this;
+
+        var after = $("<div>");
+        var before = $("<div>", {
+            id: "moodlecodeEditorTabs"
+        }).css("position", "relative");
+        before.append($("<button>").css({
+            height: "30px",
+            position: "absolute",
+            top: "0",
+            right: "0",
+            margin: "10px"
+        }).html("New").click(function(e) {
+            testCaseCount.val(parseInt(testCaseCount.val()) + 1);
+            console.log(testCaseCount.val());
+            testCaseCount.change();
+            self.destroy();
+            self.createFields();
+            e.preventDefault();
+            return false;
+        }));
+        var tablist = $("<ul>");
+        var tabcontent = [];
+        before.append(tablist);
+
+        for(var k = 0; k < this.editor.options["@testcases"]; k++) {
+            tablist.append($("<li>").append($("<a>", {
+                href: "#moodlecodeEditorTab-" + k
+            }).html(k)));
+            tabcontent[k] = $("<div>", {
+                id: "moodlecodeEditorTab-" + k
+            });
+            before.append(tabcontent[k]);
+        }
+
         for(var i in fields) {
+
+            if(i.charAt(0) == "@") {
+                if(typeof(fields[i]) != "object") {
+                    continue;
+                }
+                for(var j in fields[i]) {
+                    var f = fields[i][j];
+                    try {
+                        var result = Renderers[f.type](f, "output.value");
+                    } catch(err) {
+                        continue;
+                    }
+                    var d = tabcontent[i.match(/^@([0-9]+)/)[1]];
+                    if(typeof result == "string") {
+                        d.append($("<div>", {
+                            style: "margin-top: 20px; margin-bottom: 20px"
+                        }).html(result));
+                    } else {
+                        d.append($("<div>", {
+                            style: "margin-top: 20px; margin-bottom: 20px"
+                        }).append(result));
+                    }
+                }
+
+                continue;
+            }
+
             var target = false;
 
             for(var j in this.definition.options) {
@@ -238,15 +329,18 @@ function EnvEditorUI(envEditor, envID) {
 
             var result = Renderers[fields[i].type](fields[i], target);
             if(typeof result == "string") {
-                this.content.append($("<div>", {
+                after.append($("<div>", {
                     style: "margin-top: 20px; margin-bottom: 20px"
                 }).html(result));
             } else {
-                this.content.append($("<div>", {
+                after.append($("<div>", {
                     style: "margin-top: 20px; margin-bottom: 20px"
                 }).append(result));
             }
         }
+
+        this.content.append(before.tabs());
+        this.content.append(after);
 
         // draw call settings
         this.content.append($("<div>").html(
@@ -272,7 +366,11 @@ function EnvEditorUI(envEditor, envID) {
         var self = this;
         $(".envEditorField").each(function() {
             var val = self.getValue(fields, $(this).data("id"));
-            var field = fields[$(this).data("field")];
+            var parts = $(this).data("field").split(".");
+            var field = fields;
+            while(parts.length > 0) {
+                field = field[parts.shift()];
+            }
             if(field && field.encode) {
                 val = self.decode(val, field.encode);
             }
@@ -333,6 +431,7 @@ function EnvEditorUI(envEditor, envID) {
     // removes everything from fields that is default
     this.minimalOptions = function (fields) {
         var defaults = this.getFields(true);
+        console.log(fields, defaults);
         return this.minimal(fields, defaults);
     };
 

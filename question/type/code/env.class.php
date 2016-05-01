@@ -126,7 +126,7 @@ class env {
         // create temporary files
         $this->createFiles();
 
-        self::debug($this->values);
+        //self::debug($this->values);
 
         $runid = time()."-".sha1(microtime().uniqid().rand());
         $output = false;
@@ -141,7 +141,7 @@ class env {
             $output = $this->runDocker($action);
         }
 
-        self::debug($output);
+        //self::debug($output);
 
         if($context) {
             // log and save run to file
@@ -222,24 +222,9 @@ class env {
      * @return array
      */
     private function runDocker($do) {
+        //self::debug($do);
         $docker = new Docker($do['image']);
         $docker->start();
-
-        if(is_array($do['copy'])) {
-            // create remote directory
-            $docker->exec("mkdir -p ".$do['copyTo']);
-
-            // copy only certain files
-            foreach ($do['copy'] as $v) {
-                $docker->send($this->tmp."/".$v, $do['copyTo']);
-            }
-        } else if($do['copy'] == '*'){
-            // copy everything
-            $docker->send($this->tmp, $do['copyTo']);
-        }
-
-        // check environment
-        $docker->exec("bash -c \"ls {$do['copyTo']}\"");
 
         $ret = [
             "log" => [],
@@ -248,19 +233,88 @@ class env {
             "code" => null,
             "success" => true
         ];
+
+        $testcases = $this->getValue("@testcases");
+        if($testcases && $do['testCases']) {
+            $grades = [];
+            for($i = 0; $i < $testcases; $i++) {
+                $ret = $this->dockerGetResults($docker, $do, "@$i");
+
+                $tags = $this->getTags($ret["output"]);
+                if(array_key_exists("score", $tags)) {
+                    array_push($grades, $tags['score']);
+                }
+            }
+
+
+            if($do['testCases']['method'] == "lowest") {
+                if(count($grades) == 0) {
+                    $ret['output'] = ["score: 0"];
+                } else {
+                    $ret['output'] = ["score: ".min($grades)];
+                }
+            }
+
+        } else {
+            $ret = $this->dockerGetResults($docker, $do);
+        }
+
+        $docker->stop();
+
+        return $ret;
+    }
+
+    /**
+     * Runs the action and returns the results, already processed.
+     * Changes this->_output
+     * @param Docker $docker
+     * @param array $do the action object
+     * @param string $prefix prefix added to the parser
+     * @return array
+     */
+    function dockerGetResults($docker, $do, $prefix = "") {
+        $this->createFiles($prefix);
+
+        if(is_array($do['copy'])) {
+            $docker->exec("rm -rf ".$do['copyTo']);
+            $docker->exec("bash -c \"ls {$do['copyTo']}\"");
+            // create remote directory
+            $docker->exec("mkdir -p ".$do['copyTo']);
+
+            // copy only certain files
+            foreach ($do['copy'] as $v) {
+                $docker->send($this->tmp."/".$v, $do['copyTo']);
+            }
+        } else if($do['copy'] == '*'){
+            $docker->exec("rm -rf ".$do['copyTo']);
+            $docker->exec("bash -c \"ls {$do['copyTo']}\"");
+            // copy everything
+            $docker->send($this->tmp, $do['copyTo']);
+        }
+
+        // check environment
+        $docker->exec("bash -c \"ls {$do['copyTo']}\"");
+
+        $reti = [
+            "log" => [],
+            "output" => [],
+            "feedback" => [],
+            "code" => null,
+            "success" => true
+        ];
         foreach ($do['commands'] as $v) {
             $val = 0;
-            self::debug($v);
+            //self::debug($v);
             if(!is_array($v)) {
                 // single commands replace current output
-                self::debugt("Single command");
-                unset($ret['output']);
+                //self::debugt("Single command");
+                unset($reti['output']);
                 $cmd = $v;
-                $docker->exec('bash -c "cd '.$do['copyTo'].'; '.$this->parse($cmd).'"', $ret['output'], $val);
-                $ret["code"] = $val;
+                $docker->exec('bash -c "cd '.$do['copyTo'].'; '.$this->parse($cmd, $prefix).'"', $reti['output'], $val);
+                $reti["code"] = $val;
             } else {
                 // this command has special options
-                self::debugt("Full command");
+                //self::debugt("Full command");
                 $cmd = false;
                 $output = false;
                 if(array_key_exists("cmd", $v)) {
@@ -277,11 +331,11 @@ class env {
                     }
                 }
                 $result = [];
-                $docker->exec('bash -c "cd '.$do['copyTo'].'; '.$this->parse($cmd).'"', $result, $val);
-                $ret["code"] = $val;
+                $docker->exec('bash -c "cd '.$do['copyTo'].'; '.$this->parse($cmd, $prefix).'"', $result, $val);
+                $reti["code"] = $val;
 
                 foreach($output as $o) {
-                    $ret[$o] = array_merge($ret[$o], $result);
+                    $reti[$o] = array_merge($reti[$o], $result);
                 }
             }
 
@@ -289,28 +343,26 @@ class env {
             if($val) {
                 // return code non-zero means something went wrong
                 // mark this as a failure and stop
-                self::debugt("Non-zero return value: $val - abort");
-                $ret['success'] = false;
+                //self::debugt("Non-zero return value: $val - abort");
+                $reti['success'] = false;
                 break;
             }
         }
 
-        $this->setValue("_output", $ret);
+        $this->setValue("_output", $reti);
 
         if(isset($do['outputProcess'])) {
             $params = [];
             foreach($do['outputProcess']['params'] as $k => $v) {
-                $params[$k] = $this->getValue($v);
+                $params[$k] = $this->getValue($v, $prefix);
             }
 
             if(isset($this->functions[$do['outputProcess']['function']])) {
-                $ret['output'] = call_user_func($this->functions[$do['outputProcess']['function']], $params, $this);
+                $reti['output'] = call_user_func($this->functions[$do['outputProcess']['function']], $params, $this);
             }
         }
 
-        $docker->stop();
-
-        return $ret;
+        return $reti;
     }
 
     /**
@@ -335,18 +387,30 @@ class env {
      * Creates any temporary files (when output.type == "file")
      * Files will output to $this->tmp
      */
-    private function createFiles() {
-        foreach ($this->values as $k => $v) {
+    private function createFiles($prefix = "") {
+        //self::debugt($prefix);
+        if($prefix) {
+            $u = $this->values[$prefix];
+        } else {
+            $u = $this->values;
+        }
+        //self::debug($u);
+        foreach ($u as $k => $v) {
+            $v = $this->getValue($k, $prefix);
+            //self::debug($v);
             if(is_array($v) && array_key_exists("output", $v)) {
                 if($v['output']['type'] == 'file') {
                     if(!array_key_exists('value', $v['output'])) {
                         $v['output']['value'] = null;
                     }
+                    @unlink($this->tmp."/".$v['output']['name']);
+                    self::debugt("PUT CONTENTS: ". base64_decode($v['output']['value']));
                     file_put_contents($this->tmp."/".$v['output']['name'], base64_decode($v['output']['value']));
                 } else if($v['output']['type'] == 'json') {
                     if(!array_key_exists('value', $v['output'])) {
                         $v['output']['value'] = null;
                     }
+                    @unlink($this->tmp."/".$v['output']['name']);
                     file_put_contents($this->tmp."/".$v['output']['name'], json_encode($v['output']['value']));
                 }
             }
@@ -357,11 +421,12 @@ class env {
      * Parse commands, replacing variables with their values.
      * Variable format: %field.(...).value.
      * Values are acquired using getValue()
-     * @param $cmd
+     * @param string $cmd
+     * @param string $prefix Prefix for the value
      * @return string
      */
-    private function parse($cmd) {
-        self::debugt("Parse: $cmd");
+    private function parse($cmd, $prefix = "") {
+        //self::debugt("Parse: $cmd");
         $out = "";
         $token = "";
         $toToken = false;
@@ -416,7 +481,7 @@ class env {
             }
 
             if($parseToken) {
-                $out .= $this->getValue($token);
+                $out .= $this->getValue($token, $prefix);
                 $token = "";
                 $out .= $postAppend;
             }
@@ -425,7 +490,7 @@ class env {
         }
 
         if($toToken) {
-            $out .= $this->getValue($token);
+            $out .= $this->getValue($token, $prefix);
         }
 
         return $out;
@@ -433,19 +498,35 @@ class env {
 
     /**
      * @param string $var the field name
+     * @param string $prefix
      * @return array|null the value
      */
-    private function getValue($var) {
+    private function getValue($var, $prefix = "") {
         $pieces = array_reverse(explode(".", $var));
+        if($prefix) {
+            array_push($pieces, $prefix);
+        }
         $arr = $this->values;
         while (count($pieces)) {
+            ////self::debug($arr);
             $v = array_pop($pieces);
             if(!array_key_exists($v, $arr)) {
-                self::debugt("There is no $var");
+                if($prefix) {
+                    return $this->getValue($var);
+                }
+                //self::debugt("There is no $var");
                 return null;
             }
             $arr = $arr[$v];
         }
+        if($prefix) {
+            try {
+                $arr = $this->mergeOptions($arr, $this->getValue($var));
+            } catch(Exception $err) {
+
+            }
+        }
+
         //self::debugt("$var is $arr");
         return $arr;
 
@@ -497,6 +578,7 @@ class env {
     }
 
     public function setEnvOptions(array $ov = []) {
+        ////self::debug($ov);
         $optionsValue = [];
 
         $av = $this->options;
@@ -740,7 +822,7 @@ function regexCompare($params, $env) {
         if($v['regex'] && strlen($v['regex']) > 0) {
             $rx = "/{$v['regex']}/i";
             $env->debugt("Match $rx?");
-            if(preg_match($rx, $response)) {
+            if(@preg_match($rx, $response)) {
                 $grade = $v['fraction'];
                 break;
             }

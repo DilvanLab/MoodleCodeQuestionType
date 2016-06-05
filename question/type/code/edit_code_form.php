@@ -54,7 +54,7 @@ class qtype_code_edit_form extends question_edit_form {
         $mform->addElement('textarea', 'envoptions',
             get_string('envoptions', 'qtype_code'), 'style="width:100%" rows="10" id="envoptions"');
         $mform->addElement('html', "<div id = 'envoptionsedit' style='margin-top: 20px; margin-bottom: 20px'></div>");
-        $mform->addElement('html', "<div style='width: 100%; height: 300px' id='envoptionsace'></div>");
+        $mform->addElement('html', "<div style='width: 100%; height: 300px; display: none' id='envoptionsace'></div>");
 
         $jqueryURL = new moodle_url('/question/type/code/scripts/jquery-2.1.4.min.js');
         $uiURL = new moodle_url('/question/type/code/scripts/jquery-ui-1.11.4.custom/jquery-ui.min.js');

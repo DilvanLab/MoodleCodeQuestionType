@@ -99,6 +99,7 @@ class qtype_code_question extends question_graded_automatically implements quest
     }
 
     public function grade(array $response, &$graded = null) {
+        global $COURSE;
         if($this->graded) {
             return $this->graded;
         }
@@ -116,8 +117,8 @@ class qtype_code_question extends question_graded_automatically implements quest
 
         $graded = $this->getGraded($response['runid']);
 
-        $contextmodule = context_system::instance();
-        $output = $env->grade($response, $contextmodule);
+        $coursecontext = context_course::instance($COURSE->id);
+        $output = $env->grade($response, $coursecontext);
         $this->graded = $output;
 
         $graded->setOutput($output);
@@ -170,7 +171,7 @@ class qtype_code_question extends question_graded_automatically implements quest
             $img = new moodle_url("/question/type/code/pix/slash.png");
         }
         $feedback .= "<div style='text-align: center; float: left; margin-right: 20px; margin-left: 20px; margin-bottom: 20px'><img src = '$img' width='100px' height='100px'/></div>";
-        $feedback .= "<h3>Your score: $score%</h3><br>";
+        $feedback .= "<h3>". get_string('yourscore', 'qtype_code', $score)."</h3><br>";
 
         if(!$graded->output) {
             return get_string('nooutput', 'qtype_code');

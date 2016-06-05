@@ -31,13 +31,13 @@ $string['pluginnameediting'] = 'Editing a code question';
 $string['pluginnamesummary'] = 'This question type creates a formatted input box where students can enter code. Supports automatic grading and file upload.';
 
 $string['autocorrecttitle'] = "AutoCorrect";
-$string['autocorrectenv'] = "Environment";
-$string['envoptions'] = "Environment options";
-$string['editenv'] = "Edit options";
+$string['autocorrectenv'] = "Language and Correction Type";
+$string['envoptions'] = "AutoCorrect Settings";
+$string['editenv'] = "Open editor";
 
 $string['displayfilewillbe'] = 'This file will be called <strong>{$a}</strong>';
 $string['namethisfile'] = 'Name this file: ';
-$string['envutils'] = 'Utilities';
+$string['envutils'] = 'Debugging tools';
 
 $string['nooutput'] = 'No output from the grader.';
 $string['runerror'] = 'Error while running your code!';
@@ -45,3 +45,4 @@ $string['runsuccess'] = 'No compilation error';
 
 $string['eventcoderun'] = 'Code executed';
 $string['noattempt'] = 'No attempt was made';
+$string['yourscore'] = 'Your Score: {$a}%';

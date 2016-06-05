@@ -58,12 +58,18 @@ function EnvEditor(textarea, editor, button, select) {
     this.changeSelector = function () {
         if (this.uiEditor) {
             this.uiEditor.destroy();
+            this.uiEditor = null;
+            this.setOptions({});
         }
     };
 
     this.setOptions = function(o) {
         this.options = o;
         this.session.setValue(JSON.stringify(o, null, 4));
+    };
+
+    this.debug = function() {
+        $(".envCodeDebug").show();
     };
 
     this.button.click($.proxy(this.openEditor, this));
@@ -343,18 +349,23 @@ function EnvEditorUI(envEditor, envID) {
         this.content.append(after);
 
         // draw call settings
-        this.content.append($("<div>").html(
+        var callSettings = $("<div>", {
+            class: "envCodeDebug"
+        }).css({display: "none"});
+        callSettings.append($("<div>").html(
             "<strong>Name: </strong>" + this.definition.name
         ));
 
         for(i in this.definition.action) {
-            this.content.append($("<h5>").html("Action id: " + i));
+            callSettings.append($("<h5>").html("Action id: " + i));
             var actionText = this.getActionText(this.definition.action[i]);
-            this.content.append($("<div>").html(
+            callSettings.append($("<div>").html(
                 actionText
             ));
-            this.content.append($("<hr>"));
+            callSettings.append($("<hr>"));
         }
+
+        this.content.append(callSettings);
 
         this.registerFields(fields);
         this.updateFields(fields);
@@ -546,6 +557,7 @@ var Renderers = {
         }
 
         container.append($("<h3>").text(x.name));
+        container.append($("<span>").html("Test Regexes on <a href='https://regex101.com/'>https://regex101.com/</a><br><br>"));
 
         var num = x.count || 4;
         //for(var i = 0; i < num; i++) {
@@ -662,5 +674,9 @@ var envEditor;
 var utils;
 $(document).ready(function () {
     envEditor = new EnvEditor($("#envoptions"), ace.edit("envoptionsace"), $("#editenv"), $("#envselect"));
-    utils = new Utilities($("#envutils"));
+    //utils = new Utilities($("#envutils"));
+    $("#envutils").click(function() {
+        envEditor.debug();
+        $("#envoptionsace").show();
+    });
 });

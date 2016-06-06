@@ -38,9 +38,11 @@ defined('MOODLE_INTERNAL') || die();
 class qtype_code_edit_form extends question_edit_form {
 
     protected function definition_inner($mform) {
+        global $COURSE;
         $qtype = question_bank::get_qtype('code');
 
-        $cid = required_param('courseid', PARAM_INT);
+        //$cid = required_param('courseid', PARAM_INT);
+        $cid = $COURSE->id;
 
         $mform->addElement('header', 'autocorrecttitle', get_string('autocorrecttitle', 'qtype_code'));
         $mform->setExpanded('autocorrecttitle');
@@ -74,6 +76,8 @@ class qtype_code_edit_form extends question_edit_form {
         $mform->addElement('html', "<script type='text/javascript'>var ajaxURL = '$ajaxURL'</script>");
 
         $mform->setDefault('envoptions', '');
+        $this->add_combined_feedback_fields(true);
+        $this->add_interactive_settings(true, true);
     }
 
     protected function data_preprocessing($question) {

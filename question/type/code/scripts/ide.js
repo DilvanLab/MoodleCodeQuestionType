@@ -87,7 +87,7 @@ $(function() {
                 }
             },
             error: function(a, status, err) {
-                message.text(status + ": " + err).show();
+                message.html(status + ": " + err + "<br>" + a.responseText).show();
             }
         });
 

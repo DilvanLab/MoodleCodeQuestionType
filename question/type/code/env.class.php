@@ -34,7 +34,12 @@ class env {
         if(!self::$debug) {
             return;
         }
-        echo "<pre>[ENV] $var</pre>";
+        $trace = debug_backtrace();
+        $t = "";
+        foreach($trace as $v) {
+            $t.= "\n{$v['function']}:{$v['line']}";
+        }
+        echo "<pre>[ENV] $var $t</pre>";
     }
 
     /**
@@ -135,10 +140,11 @@ class env {
         } else {
             $action = $this->options["action"];
         }
+
         if(is_string($action)) {
             $output = $this->run($this->parse($action));
         } else if($action["type"] == "docker"){
-            $output = $this->runDocker($action);
+            $output = $this->runDocker($action, $config);
         }
 
         //self::debug($output);
@@ -219,9 +225,10 @@ class env {
      * Returns in the same way as run()
      *
      * @param array $do the action to run
+     * @param string $type "grade" or "test"
      * @return array
      */
-    private function runDocker($do) {
+    private function runDocker($do, $type) {
         //self::debug($do);
         $docker = new Docker($do['image']);
         $docker->start();
@@ -235,24 +242,86 @@ class env {
         ];
 
         $testcases = $this->getValue("@testcases");
+        self::debugt("Run mode: $type");
+        if($type != "grade") {
+            $testcases = false;
+            self::debugt("Ignore test cases - test run");
+        }
         if($testcases && $do['testCases']) {
             $grades = [];
             for($i = 0; $i < $testcases; $i++) {
-                $ret = $this->dockerGetResults($docker, $do, "@$i");
-
+                $retk = $this->dockerGetResults($docker, $do, "@$i");
+                $retk['feedback'] = array_merge($ret['feedback'], $retk['feedback']);
+                $retk['log'] = array_merge($ret['log'], $retk['log']);
+                $ret = $retk;
                 $tags = $this->getTags($ret["output"]);
                 if(array_key_exists("score", $tags)) {
-                    array_push($grades, $tags['score']);
+                    array_push($grades, [
+                        "score" => $tags['score'],
+                        "weight" => $this->getValue("weight.value", "@$i")
+                    ]);
+                }
+                if(array_key_exists("feedback", $tags) && strlen($tags['feedback']) > 0) {
+                    $ret['feedback'][] = $tags['feedback'];
                 }
             }
 
 
-            if($do['testCases']['method'] == "lowest") {
-                if(count($grades) == 0) {
-                    $ret['output'] = ["score: 0"];
-                } else {
-                    $ret['output'] = ["score: ".min($grades)];
-                }
+            if($do['testCases']['method']) {
+                $method = $this->parse($do['testCases']['method']);
+            } else {
+                $method = $this->getValue("testCasesMethod.value");
+            }
+            self::debugt("Method: $method");
+            switch($method) {
+                case "lowest":
+                    if(count($grades) == 0) {
+                        $ret['output'] = ["score: 0"];
+                    } else {
+                        $min = $grades[0]["score"];
+                        foreach($grades as $v) {
+                            if($v['score'] < $min) {
+                                $min = $v['score'];
+                            }
+                        }
+                        $ret['output'] = ["score: ".$min];
+                    }
+                    break;
+                case "highest":
+                    if(count($grades) == 0) {
+                        $ret['output'] = ["score: 0"];
+                    } else {
+                        $max = $grades[0]["score"];
+                        foreach($grades as $v) {
+                            if($v['score'] > $max) {
+                                $max = $v['score'];
+                            }
+                        }
+                        $ret['output'] = ["score: ".$max];
+                    }
+                    break;
+                case "weighted":
+                    if(count($grades) == 0) {
+                        $ret['output'] = ["score: 0"];
+                    } else {
+                        $weights = 0;
+                        $val = 0;
+                        foreach($grades as $v) {
+                            $weights += $v['weight'];
+                        }
+
+                        self::debugt("Total weights: $weights");
+
+                        foreach($grades as $v) {
+                            $val += $v['score'] * $v['weight'] / $weights;
+                        }
+
+                        $ret['output'] = ["score: ".$val];
+                    }
+                    break;
+                default:
+                    $ret['output'] = ["score: 0", "feedback: Invalid test case method: ".$method];
+                    break;
             }
 
         } else {
@@ -262,6 +331,22 @@ class env {
         $docker->stop();
 
         return $ret;
+    }
+
+    function processIf($if, $do, $prefix) {
+        $a = $this->parse($if['a'], $prefix);
+        $b = $this->parse($if['b'], $prefix);
+
+        self::debugt("Compare: {$if['a']} and {$if['b']} \n $a {$if['operation']} $b");
+
+        switch($if['operation']) {
+            case '=':
+                return $a == $b;
+            case '!=':
+                return $a != $b;
+            default:
+                return false;
+        }
     }
 
     /**
@@ -304,6 +389,7 @@ class env {
         ];
         foreach ($do['commands'] as $v) {
             $val = 0;
+            $cmd = false;
             //self::debug($v);
             if(!is_array($v)) {
                 // single commands replace current output
@@ -314,8 +400,7 @@ class env {
                 $reti["code"] = $val;
             } else {
                 // this command has special options
-                //self::debugt("Full command");
-                $cmd = false;
+                self::debugt($v['cmd']);
                 $output = false;
                 if(array_key_exists("cmd", $v)) {
                     $cmd = $v['cmd'];
@@ -323,6 +408,27 @@ class env {
                 if($cmd === false) {
                     continue;
                 }
+                if(array_key_exists("if:and", $v)) {
+                    self::debugt("process IF");
+                    if(is_array($v['if:and'])) {
+                        $success = true;
+                        foreach($v['if:and'] as $u) {
+                            if(!$this->processIf($u, $do, $prefix)) {
+                                $success = false;
+                                self::debugt("Failed");
+                                break;
+                            }
+                        }
+                        if(!$success) {
+                            continue;
+                        }
+                    } else {
+                        if(!$this->processIf($v['if:and'], $do, $prefix)) {
+                            continue;
+                        }
+                    }
+                }
+                self::debugt("Run");
                 if(array_key_exists("output", $v)) {
                     if(is_array($v['output'])) {
                         $output = $v['output'];
@@ -345,6 +451,7 @@ class env {
                 // mark this as a failure and stop
                 //self::debugt("Non-zero return value: $val - abort");
                 $reti['success'] = false;
+                $reti['feedback'][] = "Non-zero return value: $val - Execution stopped \nCommand: $cmd";
                 break;
             }
         }
@@ -398,15 +505,15 @@ class env {
         foreach ($u as $k => $v) {
             $v = $this->getValue($k, $prefix);
             //self::debug($v);
-            if(is_array($v) && array_key_exists("output", $v)) {
-                if($v['output']['type'] == 'file') {
+            if(is_array($v) && array_key_exists("output", $v) && @!$v['output']['nofile']) {
+                if(@$v['output']['type'] == 'file' || @$v['output']['type'] == 'std') {
                     if(!array_key_exists('value', $v['output'])) {
                         $v['output']['value'] = null;
                     }
                     @unlink($this->tmp."/".$v['output']['name']);
-                    self::debugt("PUT CONTENTS: ". base64_decode($v['output']['value']));
+                    //self::debugt("PUT CONTENTS: ". base64_decode($v['output']['value']));
                     file_put_contents($this->tmp."/".$v['output']['name'], base64_decode($v['output']['value']));
-                } else if($v['output']['type'] == 'json') {
+                } else if(@$v['output']['type'] == 'json') {
                     if(!array_key_exists('value', $v['output'])) {
                         $v['output']['value'] = null;
                     }
@@ -671,6 +778,10 @@ class env {
                 $v = $this->values[$v['id']];
             }
 
+            if(array_key_exists("hidden", $v)) {
+                continue;
+            }
+
             $addName = false;
             if(is_array($v['output']) && array_key_exists('name', $v['output'])) {
                 if($v['output']['name'] == "") {
@@ -777,6 +888,8 @@ class env {
 function resultCompare($params, $env) {
     $correct = 0;
 
+    $env->debug($params);
+
     $model = explode("\n", base64_decode($params['model']));
 
     $model = array_filter($model, function($var) {
@@ -802,10 +915,23 @@ function resultCompare($params, $env) {
     }
 
     $num += count($response);
+    if(!$num) {
+        $score = 0;
+    } else {
+        $score = ($correct/$num);
+    }
 
-    return [
-        "score: ". ($correct/$num)
+    $r = [
+        "score: ". $score
     ];
+
+    if($score != 1.0 && array_key_exists("feedback", $params)){
+        $r[] = "feedback: " . str_replace("\n", "\\n ", $params['feedback']);
+    }
+
+    $env->debug($r);
+
+    return $r;
 }
 
 /**
@@ -830,9 +956,15 @@ function regexCompare($params, $env) {
         }
     }
 
-    return [
-        "score: $grade"
+    $r = [
+        "score: ". $grade
     ];
+
+    if($grade != 1.0 && array_key_exists("feedback", $params)){
+        $r[] = "feedback: " . str_replace("\n", "\\n ", $params['feedback']);
+    }
+
+    return $r;
 }
 
 /**

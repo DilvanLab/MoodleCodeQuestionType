@@ -191,7 +191,7 @@ class qtype_code_question extends question_graded_automatically implements quest
 
         $o = $graded->output["output"];
 
-        if(@$o->feedback) {
+        if(@$o->feedback){
             $feedback .= "<pre>". implode("\n", $o->feedback) ."</pre>";
         }
 
@@ -232,7 +232,7 @@ class qtype_code_question extends question_graded_automatically implements quest
          * This will grade the response so we can print the response
          */
         try {
-            $graded = $this->getGraded($newresponse['runid'], $newresponse);
+            @$graded = $this->getGraded($newresponse['runid'], $newresponse);
         } catch(Exception $e) {
 
         }

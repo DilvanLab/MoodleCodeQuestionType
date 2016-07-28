@@ -59,7 +59,6 @@ function EnvEditor(textarea, editor, button, select) {
         if (this.uiEditor) {
             this.uiEditor.destroy();
             this.uiEditor = null;
-            this.setOptions({});
         }
     };
 
@@ -160,7 +159,18 @@ function EnvEditorUI(envEditor, envID) {
             if(typeof(action.commands[i]) == "string") {
                 str += this.formatCommand(action.commands[i]);
             } else {
-                str += this.formatCommand(action.commands[i].cmd);
+                var c = action.commands[i];
+                if(c['if:and']) {
+                    var k = [];
+                    if(!c['if:and'].length) {
+                        c['if:and'] = [c['if:and']];
+                    }
+                    c['if:and'].forEach(function(v) {
+                        k.push(v.a + v.operation + v.b);
+                    });
+                    str += "<b>if (" + k.join(" and ") + " )</b>";
+                }
+                str += this.formatCommand(c.cmd);
             }
         }
 
@@ -185,31 +195,6 @@ function EnvEditorUI(envEditor, envID) {
     this.getFields = function (makeDefault) {
         var fields = {};
 
-        if(!makeDefault) {
-            fields["@testcases"] = this.editor.options['@testcases'];
-        }
-
-        for(var j = 0; j < this.editor.options['@testcases']; j++) {
-            fields["@" + j] = {};
-            var u = fields["@" + j];
-            // add options
-            for(var i in this.definition.options) {
-                var o = this.definition.options[i];
-                if(makeDefault) {
-                    var k = $.extend(true, {}, o);
-                } else {
-                    var f = this.editor.options["@" + j];
-                    if(f) {
-                        var k = $.extend(true, {}, o, f[o.id]);
-                    } else {
-                        var k = $.extend(true, {}, o);
-                    }
-                }
-                u[k.id] = k;
-                k.id = "@" + j + "." + k.id;
-            }
-        }
-
         // add inputs
         for(var i in this.definition.inputs) {
             var o = this.definition.inputs[i];
@@ -220,7 +205,65 @@ function EnvEditorUI(envEditor, envID) {
             }
         }
 
-        console.log(fields);
+        if(!makeDefault) {
+            fields["@testcases"] = this.editor.options['@testcases'];
+        }
+
+        // generate special fields (@testcases, @i.weight, method
+
+        for(var j = 0; j < this.editor.options['@testcases']; j++) {
+            fields["@" + j] = {};
+            var u = fields["@" + j];
+
+            // weight
+            u["weight"] =  $.extend(true, {}, !makeDefault ? (this.editor.options["@" + j] ? this.editor.options["@" + j].weight : {}): {}, {
+                type: "text",
+                id: "@" + j + ".weight",
+                name: "Weight",
+                desc: "A value greater than 0 representing how much this test case is worth"
+            });
+
+            if(!u['weight'].value && !makeDefault) {
+                u['weight'].value = 1;
+            }
+
+            // add options
+            for (var i in this.definition.options) {
+                var o = this.definition.options[i];
+                if (makeDefault) {
+                    var k = $.extend(true, {}, o);
+                } else {
+                    var f = this.editor.options["@" + j];
+                    if (f) {
+                        var k = $.extend(true, {}, o, f[o.id]);
+                    } else {
+                        var k = $.extend(true, {}, o);
+                    }
+                }
+                u[k.id] = k;
+                k.id = "@" + j + "." + k.id;
+            }
+        }
+
+        fields["testCasesMethod"] = $.extend(true, {}, !makeDefault ? this.editor.options["testCasesMethod"] : {}, {
+            type: "select",
+            id: "testCasesMethod",
+            name: "Test case method",
+            desc: "This determines how the testcases interact.",
+            selected: "lowest", // the default value
+            list: [
+                {
+                    label: "Lowest",
+                    value: "lowest"
+                },{
+                    label: "Highest",
+                    value: "highest"
+                },{
+                    label: "Weighted sum",
+                    value: "weighted"
+                }
+            ]
+        });
 
         return fields;
     };
@@ -229,7 +272,6 @@ function EnvEditorUI(envEditor, envID) {
         var self = this;
         $(".envEditorField").each(function() {
             $(this).change(function() {
-                console.log($(this));
                 if($(this).data("val")) {
                     self.setValue($(this).data("id"), $(this).data("field"), $(this).data("val"));
                 } else {
@@ -244,6 +286,7 @@ function EnvEditorUI(envEditor, envID) {
 
         // draw the editors
         var fields = this.getFields();
+        console.log(fields);
         var testCaseCount = $("<input>", {
             type: "hidden",
             class: "envEditorField"
@@ -264,7 +307,6 @@ function EnvEditorUI(envEditor, envID) {
             margin: "10px"
         }).html("New").click(function(e) {
             testCaseCount.val(parseInt(testCaseCount.val()) + 1);
-            console.log(testCaseCount.val());
             testCaseCount.change();
             self.destroy();
             self.createFields();
@@ -296,6 +338,7 @@ function EnvEditorUI(envEditor, envID) {
                     try {
                         var result = Renderers[f.type](f, "output.value");
                     } catch(err) {
+                        console.error(err);
                         continue;
                     }
                     var d = tabcontent[i.match(/^@([0-9]+)/)[1]];
@@ -345,8 +388,8 @@ function EnvEditorUI(envEditor, envID) {
             }
         }
 
-        this.content.append(before.tabs());
         this.content.append(after);
+        this.content.append(before.tabs());
 
         // draw call settings
         var callSettings = $("<div>", {
@@ -374,9 +417,11 @@ function EnvEditorUI(envEditor, envID) {
 
     // takes the current field values and puts them on the elements
     this.updateFields = function(fields) {
+        console.log("Update fields", fields);
         var self = this;
         $(".envEditorField").each(function() {
-            var val = self.getValue(fields, $(this).data("id"));
+            var id = $(this).data("id");
+            var val = self.getValue(fields, id);
             var parts = $(this).data("field").split(".");
             var field = fields;
             while(parts.length > 0) {
@@ -388,6 +433,7 @@ function EnvEditorUI(envEditor, envID) {
             if(val === null && $(this).data("default") != undefined) {
                 val = $(this).data("default");
             }
+            console.log($(this).data("id") + " Change value to " + val);
             $(this).val(val);
         });
     };
@@ -442,7 +488,6 @@ function EnvEditorUI(envEditor, envID) {
     // removes everything from fields that is default
     this.minimalOptions = function (fields) {
         var defaults = this.getFields(true);
-        console.log(fields, defaults);
         return this.minimal(fields, defaults);
     };
 
@@ -501,13 +546,21 @@ var Renderers = {
         var str = "";
 
         //add title
-        str += "<h3>" + x.name + "</h3>";
+        str += "<h4>" + x.name + "</h4>";
+
+        if(x.desc) {
+            str += "<div>" + x.desc + "</div><br>"
+        }
+
         // add text area
-        str += '<strong>Default</strong><br><textarea style="width: 100%; height: 200px" data-field="' + x.id + '"  class="envEditorField" data-id="' + x.id + '.' + target + '"></textarea>';
-        // output name and type
-        str += "<strong>Output:</strong>";
-        str += '<select style="width: 40%;" class="envEditorField" data-field="' + x.id + '.output" data-id="' + x.id + '.output.type"><option value="file">file</option></select>';
-        str += '<input style="width: 40%;" type="text" data-field="' + x.id + '.output" class="envEditorField" data-id="' + x.id + '.output.name">';
+        str += '<textarea style="width: 100%; height: 200px" data-field="' + x.id + '"  class="envEditorField" data-id="' + x.id + '.' + target + '"></textarea>';
+
+        if(!x.nofile) {
+            // output name and type
+            str += "<strong>Output:</strong> ";
+            str += '<select class="envEditorField" data-field="' + x.id + '.output" data-id="' + x.id + '.output.type"><option value="file">file</option><option value="std">stdIn/out</option></select>';
+            str += '<input style="width: 300px;" type="text" data-field="' + x.id + '.output" class="envEditorField" data-id="' + x.id + '.output.name">';
+        }
 
         return str;
     },
@@ -519,7 +572,7 @@ var Renderers = {
         }
 
         var str = Renderers["textarea"](x, target);
-        str += "<br><strong>Lang:</strong> <select data-field='" + x.id + ".lang' data-id='" + x.id + ".lang' class=\"envEditorField\">";
+        /*str += "<br><strong>Lang:</strong> <select data-field='" + x.id + ".lang' data-id='" + x.id + ".lang' class=\"envEditorField\">";
         for(var i in langs) {
             if(langs[i]) {
                 str += "<option value='" + langs[i] + '\'>' + langs[i] + "</option>";
@@ -528,7 +581,7 @@ var Renderers = {
             }
         }
 
-        str += "</select>";
+        str += "</select>";*/
 
         return str;
     },
@@ -557,6 +610,9 @@ var Renderers = {
         }
 
         container.append($("<h3>").text(x.name));
+        if(x.desc) {
+            container.append($("<div>").text(x.desc));
+        }
         container.append($("<span>").html("Test Regexes on <a href='https://regex101.com/'>https://regex101.com/</a><br><br>"));
 
         var num = x.count || 4;
@@ -597,6 +653,55 @@ var Renderers = {
         //}).data("field", x.id + ".output").data("id", x.id));
 
         return container;
+    },
+    "select": function(x, target) {
+        var str="";
+        //add title
+        str += "<h4>" + x.name + "</h4>";
+
+        if(x.desc) {
+            str += "<div>" + x.desc + "</div><br>"
+        }
+
+        // add select
+        str += "<select class='envEditorField' data-id='" + x.id + ".value' data-field='" + x.id + "'>";
+        x.list.forEach(function(v) {
+            str += "<option value='" + v.value + "' " + (x.selected == v.value ? "seleced" : "") + ">" + v.label + "</option>";
+        });
+        str += "</select>";
+        return str;
+    },
+    "textselect": function(x, target) {
+        var str = "";
+
+        //add title
+        str += "<h4>" + x.name + "</h4>";
+
+        if(x.desc) {
+            str += "<div>" + x.desc + "</div><br>"
+        }
+
+        // add select
+        str += "<select class='envEditorField' data-id='" + x.id + ".selected' data-field='" + x.id + "'>";
+        x.list.forEach(function(v) {
+            str += "<option value='" + v.value + "' " + (x.selected == v.value ? "seleced" : "") + ">" + v.label + "</option>";
+        });
+        str += "</select>";
+
+        str += "<input class='envEditorField' type='text' data-id='" + x.id + ".value' data-field='" + x.id + "'>";
+
+        return str;
+    },
+    "text": function(x) {
+        var str="";
+        //add title
+        str += "<h4>" + x.name + "</h4>";
+        if(x.desc) {
+            str += "<div>" + x.desc + "</div><br>"
+        }
+        // add select
+        str += "<input class='envEditorField' type='text' data-id='" + x.id + ".value' data-field='" + x.id + "'>";
+        return str;
     }
 };
 
